@@ -12,6 +12,8 @@ make db-reset   # drop and apply db/schema.sql
 make seed       # reset, generate 24 months, load, write data/answer_key.json
 make test
 uv run python scripts/evaluate.py --as-of month-1 --as-of month-9
+make step       # run the next live month
+make year       # re-seed, run all twelve with stand-in humans, print the metrics
 ```
 
 `DATABASE_URL` overrides the default `postgresql://tpa:tpa@localhost:5433/tpa`. Tests reset the schema, so point them at a scratch database.
@@ -25,6 +27,29 @@ uv run python scripts/evaluate.py --as-of month-1 --as-of month-9
 - `tpa/asof.py` — `balances_as_of` (the spec's one query), `entries_as_of`, `entry_history` (the interrogation chain), `terms_as_of`, `landed` (source rows visible by sim date).
 - `tpa/gates.py` — the five verifiability gates and `sign_period`, which refuses to sign a period that fails one.
 - `tpa/evaluate.py` — precision, recall, escalation rate and autonomy against the answer key; `scripts/evaluate.py` prints them.
+- `tpa/accrual.py` — the accrual math, pure functions: scan-back segments by rate, fixed funds, the restatement delta, how thresholds get rounded.
+- `tpa/controls.py` — the controls library: one check per control, shared by the onboarding replay and the live cycle. Checks return `Hit`s; only those over the mined threshold become findings.
+- `tpa/onboarding.py` — replays the history year, classifies every prior human decision by the check that fires on it, and mines thresholds, owners and precedent ids into `controls`. Also derives priors (claim lag, dispute and backup rates, materiality).
+- `tpa/cycle.py` — the monthly engine. `step(conn, hooks)` runs one month: day by day (late returns, amendments, deductions, scripted human actions), then the close (revenue, accruals, gates, sign-off, flux). The period state machine lives here.
+- `tpa/restate.py` — restatement: when an amendment's valid time reaches into accrued periods, propose a catch-up per period, raise it for the controller, post through `post_catch_up` once approved, and withdraw any dispute the old terms led us to raise.
+- `tpa/execute.py` — every posting a decision can lead to (clear, dispute, top-up, re-estimate, release). `execute(cur, finding_id, decision, decided_by, at)` is how an answered escalation turns into journals.
+- `tpa/flux.py` — flux commentary for accounts over materiality, every number a sum of named journal lines.
+- `tpa/autopilot.py` — stand-in humans that answer as last year's did, for running the year end to end before the model-played roles land. `scripts/step.py --autopilot`.
+
+## Plugging into the engine (workstreams C and D)
+
+`tpa.cycle.Hooks` is where judgment plugs in. The defaults let the engine run alone:
+
+| Hook | Called | Default |
+| --- | --- | --- |
+| `judge(cur, finding, at)` | as each finding is raised, and again at close for any still `open` | mechanical precedents (duplicates, no proof, late returns) auto-resolve; the rest stay `open` |
+| `on_event(cur, scripted_event, at)` | on the event's sim date — the sales lead's self-approvals | ignored (the SoD throw is C's) |
+| `approve(cur, restatement_finding, at)` | when a restatement is proposed; return the approver or `None` to leave it escalated (`tpa.restate.apply` posts it later) | `"controller"` |
+| `sign(cur, period, customer_id, at)` | for each customer-period with nothing unresolved and every gate passing | `"close_reviewer"` |
+
+After a human answers, call `tpa.execute.execute(cur, finding_id, decision, decided_by, at)`; decisions are listed in its docstring. A source-of-truth answer decides *what* is authorised and never approves a posting itself. Clears go through the agent's mined tolerance, and anything over it raises its own DED-GT-ACCRUAL finding.
+
+Finding `evidence` always carries `summary` (the card's lede and question), `control` (id, name, threshold, owner, precedent ids, learned), `measure`, and the ids involved (`deduction_ids`, `program_id`, `origin`, `accrual_key`, `amendment_id`, `journal_ids`, …) plus check-specific facts. API mapping: `POST /api/period/{p}/step` → `cycle.step`; `GET /api/controls` → `controls` joined to finding counts; `GET /api/explain/{entry_id}` → `asof.entry_history`.
 - `tpa/seed/` — the deterministic generator. `fiction.py` holds every frozen name, rate and volume; `plant.py` plants the prior-year human decisions and the 50 live errors.
 - `data/answer_key.json` (generated) — `planted` (the 50), `behavioural` (expected findings that are not errors), `moment` (the TP-0214 catch-up by period), `controls_truth` (what the miner should find, with precedent ids).
 - `data/program_terms_truth.json` (generated) — ground-truth term extraction. `--load-terms` loads it so nothing waits on the extractor.

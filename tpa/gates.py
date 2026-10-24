@@ -114,9 +114,11 @@ def no_stale_accruals(cur, period, customer_id, as_of) -> GateResult:
     g = GateResult("no_stale_accruals",
                    f"No accrual open more than {STALE_GRACE_PERIODS} periods past the customer's "
                    f"{lag}-month claim lag without a deduction")
+    # A deduction cleared or disputed against the accrual both mean the claim arrived.
     cur.execute(
         """SELECT DISTINCT program_id, valid_time FROM ledger_entries
-           WHERE customer_id = %s AND entry_type = 'clearing' AND decision_time <= %s AND period <= %s""",
+           WHERE customer_id = %s AND decision_time <= %s AND period <= %s
+             AND (entry_type = 'clearing' OR (entry_type = 'dispute' AND deduction_id IS NOT NULL))""",
         (customer_id, as_of, period),
     )
     cleared = set(cur.fetchall())
@@ -133,14 +135,20 @@ def no_stale_accruals(cur, period, customer_id, as_of) -> GateResult:
 def claims_inside_window(cur, period, customer_id, as_of) -> GateResult:
     g = GateResult("claims_inside_window", "Every cleared deduction's claimed period falls inside its program window")
     cur.execute(
-        """SELECT e.id, e.program_id, d.id, d.claimed_period, d.claim_start, d.claim_end
+        """SELECT e.id, e.program_id, d.id, d.claimed_period, d.claim_start, d.claim_end, e.valid_time,
+                  (SELECT COUNT(DISTINCT x.valid_time) FROM ledger_entries x
+                   WHERE x.deduction_id = d.id AND x.entry_type = 'clearing' AND x.account = e.account)
            FROM ledger_entries e JOIN deductions d ON d.id = e.deduction_id
            WHERE e.period = %s AND e.customer_id = %s AND e.decision_time <= %s
              AND e.entry_type = 'clearing' AND e.account = %s""",
         (period, customer_id, as_of, Account.ACCRUED_TRADE_PROMO),
     )
-    for entry_id, program_id, ded_id, claimed, cstart, cend in cur.fetchall():
+    for entry_id, program_id, ded_id, claimed, cstart, cend, origin_end, origins in cur.fetchall():
         start, end = cstart or period_start(claimed), cend or period_end(claimed)
+        if origins > 1:
+            # Allocated across origins by activity days: check only the share cleared against this one.
+            claimed = period_of(origin_end)
+            start, end = max(start, period_start(claimed)), min(end, origin_end)
         terms = terms_as_of(cur, program_id, start, as_of) if program_id else None
         if terms is None:
             g.fail(entry_id=entry_id, deduction_id=ded_id, program_id=program_id,

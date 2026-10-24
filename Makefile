@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-reset seed test
+.PHONY: db-up db-down db-reset seed test step year
 
 db-up:
 	docker compose up -d db
@@ -14,3 +14,9 @@ seed:
 
 test:
 	uv run pytest -q
+
+step:
+	uv run python scripts/step.py
+
+year:
+	uv run python scripts/step.py --reset --through month-12 --autopilot --metrics

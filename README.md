@@ -14,9 +14,10 @@ make test
 uv run python scripts/evaluate.py --as-of month-1 --as-of month-9
 make step       # run the next live month
 make year       # re-seed, run all twelve with stand-in humans, print the metrics
+make players    # same, through the judgment engine with the model-played humans (TPA_USE_MODEL=1 for Claude)
 ```
 
-`DATABASE_URL` overrides the default `postgresql://tpa:tpa@localhost:5433/tpa`. Tests reset the schema, so point them at a scratch database.
+Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `TPA_USE_MODEL=1` turns on Claude for the played humans and card drafting; nothing needs it. `DATABASE_URL` overrides the default `postgresql://tpa:tpa@localhost:5433/tpa`. Tests reset the schema, so point them at a scratch database.
 
 ## Layout
 
@@ -35,6 +36,10 @@ make year       # re-seed, run all twelve with stand-in humans, print the metric
 - `tpa/execute.py` — every posting a decision can lead to (clear, dispute, top-up, re-estimate, release). `execute(cur, finding_id, decision, decided_by, at)` is how an answered escalation turns into journals.
 - `tpa/flux.py` — flux commentary for accounts over materiality, every number a sum of named journal lines.
 - `tpa/autopilot.py` — stand-in humans that answer as last year's did, for running the year end to end before the model-played roles land. `scripts/step.py --autopilot`.
+- `tpa/judgment.py` — the judgment engine (`judgment.hooks()`): mechanical controls go to the agent; otherwise match a precedent on (control, conflict key, customer) and apply it silently, or classify the escalation (source conflict → customer team, low confidence → controller, authority → the control's owner) and write the card. `answer(cur, escalation_id, option_id, answered_by, at, reasoning=)` is the one path a person takes: it checks who may answer, executes, writes the precedent and settles the open cards that precedent now governs. Authority decisions apply silently only up to the largest exposure decided on that key.
+- `tpa/sod.py` — segregation of duties. `can_approve(cur, actor_id, target_type, target_id)` throws `SegregationOfDutiesError` when the actor negotiated the program, or is the agent. A blocked attempt is a finding with `escalation_type='sod'`.
+- `tpa/players.py` — the model-played humans (`players.hooks()`, `scripts/step.py --players`). Each role answers its cards through `judgment.answer`; with the model on, Claude plays the role and must pick one of the card's options, otherwise it answers as last year's people did.
+- `tpa/model.py` — the only doorway to Claude, off unless `TPA_USE_MODEL=1` and `ANTHROPIC_API_KEY` are set (`TPA_MODEL` overrides `claude-opus-5-5`). A drafted card that changes any number or record id is thrown away.
 
 ## Plugging into the engine (workstreams C and D)
 

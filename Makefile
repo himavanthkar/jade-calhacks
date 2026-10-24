@@ -1,4 +1,7 @@
-.PHONY: db-up db-down db-reset seed test step year
+-include .env
+export
+
+.PHONY: db-up db-down db-reset seed test step year players
 
 db-up:
 	docker compose up -d db
@@ -20,3 +23,6 @@ step:
 
 year:
 	uv run python scripts/step.py --reset --through month-12 --autopilot --metrics
+
+players:
+	uv run python scripts/step.py --reset --through month-12 --players --metrics

@@ -9,15 +9,16 @@ Trade promotion autonomy — Cal Hacks 13.0, Hyphenate track. An autonomous syst
 ## Commands
 
 ```sh
-make db-up      # Postgres 16 on localhost:5433
+make db-up      # Postgres 16 on localhost:5433 (falls back to docker run without compose)
+make db-scratch # the tpa_scratch database tests use
 uv sync
 make db-reset   # drop and apply db/schema.sql
 make seed       # 24 months of deterministic data + data/answer_key.json
-make test       # uv run pytest -q
+make test       # pytest against TEST_DATABASE_URL (refuses to run without it)
 uv run python scripts/evaluate.py --as-of month-1 --as-of month-9
 ```
 
-Tests reset the schema. Point `DATABASE_URL` at a scratch database, never a shared one.
+Tests reset the schema. `make test` runs them against `TEST_DATABASE_URL` only (see `.env.example`), never the demo `DATABASE_URL` or a shared database.
 
 ## Domain rules (mandatory)
 

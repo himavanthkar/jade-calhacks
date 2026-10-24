@@ -4,6 +4,8 @@
     GET  /api/period/{period}          → { state, customers[], postings[], findings[], gates{}, flux[] }
     POST /api/period/{period}/step     → run that period (must be the one the clock points at)
     POST /api/period/{period}/sign     → { customer_id, signed_by } a named reviewer signs a clean period
+    GET  /api/period/{period}/package  → the sign-off package (?as_of=), per customer
+    GET  /api/period/{period}/export/{file}.csv → the package as CSV with Excel check rows
     GET  /api/controls                 → [{ id, name, threshold, owner, precedent_ids, fired_count, learned }]
     GET  /api/escalations?open=true    → [{ id, to_role, question, options[], evidence{} }]
     POST /api/escalations/{id}/answer  → { answer, answered_by?, reasoning? } ⇒ writes the precedent
@@ -29,10 +31,11 @@ from pathlib import Path
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Path as P
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from tpa import autopilot, explain, judgment, players
+from tpa import autopilot, explain, export, judgment, players
+from tpa.package import package as signoff_package
 from tpa.asof import sim_clock
 from tpa.constants import live_month, period_end, period_start
 from tpa.cycle import UNRESOLVED, last_period, step
@@ -187,6 +190,22 @@ def sign(body: Signature, period: str = P(..., pattern=PERIOD), conn=Depends(db)
         if cur.fetchone()[0]:
             cur.execute("UPDATE periods SET state = 'CLOSED' WHERE period = %s AND state = 'SIGNED'", (period,))
     return out(result)
+
+
+@app.get("/api/period/{period}/package")
+def get_package(period: str = P(..., pattern=PERIOD), as_of: str | None = None, conn=Depends(db)):
+    with conn.cursor() as cur:
+        return out(signoff_package(cur, period, export.parse_as_of(as_of)))
+
+
+@app.get("/api/period/{period}/export/{name}")
+def get_export(name: str, period: str = P(..., pattern=PERIOD), as_of: str | None = None, conn=Depends(db)):
+    if name not in export.FILES:
+        raise HTTPException(404, f"no export {name}; one of {', '.join(export.FILES)}")
+    with conn.cursor() as cur:
+        text = export.files(cur, period, export.parse_as_of(as_of))[name]
+    return PlainTextResponse(text, media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="{period}_{name}"'})
 
 
 # ── controls and escalations ────────────────────────────────────────────────

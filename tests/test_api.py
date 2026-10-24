@@ -80,3 +80,23 @@ def test_explain_and_ask(api):
 def test_metrics(api):
     m = api.get("/api/metrics?as_of=month-1").json()
     assert m["as_of"] == "2026-01" and 0 <= m["recall"] <= 1
+
+
+def test_the_package_matches_the_books(api, conn):
+    from tpa.asof import balances_as_of
+    from tpa.export import parse_as_of
+    pkg = api.get("/api/period/2026-01/package?as_of=month-1").json()
+    with conn.cursor() as cur:
+        for c in pkg["customers"]:
+            books = balances_as_of(cur, "2026-01", parse_as_of("month-1"), c["customer_id"])
+            assert c["balances"] == {k: str(v) for k, v in books.items()}
+            assert c["totals"]["debit"] == c["totals"]["credit"]
+            assert all(r["ending"] == r["outstanding"] for r in c["reconciliation"])
+
+
+def test_the_export_carries_excel_checks(api):
+    text = api.get("/api/period/2026-01/export/ledger.csv?as_of=month-1").text
+    total, check = text.strip().splitlines()[-2:]
+    assert total.startswith("TOTAL,") and "=SUM(" in total
+    assert check.startswith("CHECK,=") and check.endswith(",0.00")
+    assert api.get("/api/period/2026-01/export/secrets.csv").status_code == 404

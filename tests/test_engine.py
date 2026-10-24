@@ -230,3 +230,13 @@ def test_trade_promotion_is_contra_revenue(with_standins):
         unapproved_writeoffs = cur.fetchone()[0]
     assert all(a[0] in "124" or a == Account.WRITE_OFF for a in accounts), accounts   # no 5xxx/6xxx promo expense
     assert unapproved_writeoffs == 0
+
+
+def test_february_has_two_correct_answers_in_the_export(with_standins):
+    """The spec's 'same table, two correct answers', as the CSV a reviewer would open."""
+    from tpa.export import files, parse_as_of
+    with with_standins.cursor() as cur:
+        early, late = (files(cur, "2026-02", parse_as_of(a))["trial_balance.csv"] for a in ("month-2", "month-8"))
+    row = lambda text: next(l for l in text.splitlines() if l.startswith(f"WMT,{LIAB}"))
+    assert row(early) != row(late)
+    assert early.strip().endswith(",0.00") and late.strip().endswith(",0.00")

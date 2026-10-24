@@ -6,7 +6,8 @@ Trade promotion autonomy — Cal Hacks 13.0, Hyphenate track. See `spec.md`.
 ## Setup
 
 ```sh
-make db-up      # Postgres 16 on localhost:5433 (docker compose)
+make db-up      # Postgres 16 on localhost:5433 (docker compose, or docker run without it)
+make db-scratch # tpa_scratch, the database tests reset
 uv sync
 make db-reset   # drop and apply db/schema.sql
 make seed       # reset, generate 24 months, load, write data/answer_key.json
@@ -18,7 +19,7 @@ make api        # the HTTP API on :8000 for the UI (frontend's Vite proxy points
 make players    # same, through the judgment engine with the model-played humans (TPA_USE_MODEL=1 for Claude)
 ```
 
-Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `TPA_USE_MODEL=1` turns on Claude for the played humans and card drafting; nothing needs it. `DATABASE_URL` overrides the default `postgresql://tpa:tpa@localhost:5433/tpa`. Tests reset the schema, so point them at a scratch database.
+Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `TPA_USE_MODEL=1` turns on Claude for the played humans and card drafting; nothing needs it. `DATABASE_URL` overrides the default `postgresql://tpa:tpa@localhost:5433/tpa`. Tests reset the schema, so `make test` runs only against `TEST_DATABASE_URL`.
 
 ## Layout
 
@@ -42,6 +43,8 @@ Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `
 - `tpa/players.py` — the model-played humans (`players.hooks()`, `scripts/step.py --players`). Each role answers its cards through `judgment.answer`; with the model on, Claude plays the role and must pick one of the card's options, otherwise it answers as last year's people did.
 - `tpa/api.py` — the HTTP surface: clock, period (with `?as_of=` for "what did it know"), step, sign, controls, precedents, escalations and answers, explain, ask, metrics. Decimals go out as strings. `TPA_HUMANS` picks who answers a step's cards.
 - `tpa/explain.py` — the interrogation box. `chain(entry_id)` walks rule → terms (clause) → inputs → knew-at (and what wasn't known yet) → approved → signed → restated, every step citing ids. `ask(question)` resolves the records a question names and answers from their chains.
+- `tpa/package.py` — the sign-off package for a period as of any moment: postings, balances, findings with their escalations, gates re-run as of then, flux, and the reconciliation identity per program.
+- `tpa/export.py`, `scripts/export.py` — that package as CSVs (ledger, trial balance, reconciliation, gates) with TOTAL and CHECK formula rows Excel recomputes. `--period 2026-02 --as-of month-2` and `--as-of month-8` give February's two correct answers.
 - `tpa/model.py` — the only doorway to Claude, off unless `TPA_USE_MODEL=1` and `ANTHROPIC_API_KEY` are set (`TPA_MODEL` overrides `claude-opus-5-5`). A drafted card that changes any number or record id is thrown away.
 
 ## Plugging into the engine (workstreams C and D)

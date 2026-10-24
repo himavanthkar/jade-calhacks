@@ -1,0 +1,4 @@
+#!/bin/sh
+# Before a commit: if data/ changed, re-pack it and add the archive to the commit.
+[ -f scripts/data_archive.py ] && exec python3 scripts/data_archive.py pre-commit
+exit 0

@@ -1,0 +1,4 @@
+#!/bin/sh
+# After a checkout or pull: unpack data-archive/ into data/ if it changed. See scripts/data_archive.py.
+[ -f scripts/data_archive.py ] && exec python3 scripts/data_archive.py unpack
+exit 0

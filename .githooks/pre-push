@@ -1,0 +1,4 @@
+#!/bin/sh
+# Before a push: refuse if data/ changed since it was last packed.
+[ -f scripts/data_archive.py ] && exec python3 scripts/data_archive.py pre-push
+exit 0

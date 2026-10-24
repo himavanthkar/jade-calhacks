@@ -1,7 +1,7 @@
-import type { Control, Metrics } from './types'
+import type { Control, Metrics, Role } from './types'
 
-/** API spec calls this owner; the database column is owner_role. */
-export function adaptControls(rows: (Omit<Control, 'owner'> & { owner?: string; owner_role?: string })[]): Control[] {
+/** The API sends `owner` (the spec's name); the database column is owner_role, so accept either. */
+export function adaptControls(rows: (Omit<Control, 'owner'> & { owner?: Role; owner_role?: Role })[]): Control[] {
   return rows.map(row => {
     const owner = row.owner ?? row.owner_role
     if (!owner) throw new Error(`Control ${row.id} has no owner or owner_role`)

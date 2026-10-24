@@ -1,6 +1,5 @@
 import { adaptControls, adaptMetrics } from './adapters'
-import type { Control, Metrics } from './types'
-import type { TradePromotionApi, RequestOptions } from './types'
+import type { AsOfOptions, Control, Metrics, RequestOptions, TradePromotionApi } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -16,6 +15,10 @@ export function validatePeriod(period: string) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error('Period must use YYYY-MM format.')
   return period
 }
+function query(params: Record<string, string | undefined>) {
+  const entries = Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined)
+  return entries.length ? `?${new URLSearchParams(entries)}` : ''
+}
 
 /** No automatic POST retries: stepping or answering twice can change the books. */
 export function createHttpApi(baseUrl = '/api', fetcher: typeof fetch = fetch): TradePromotionApi {
@@ -30,19 +33,32 @@ export function createHttpApi(baseUrl = '/api', fetcher: typeof fetch = fetch): 
     const raw = await response.text()
     let data: unknown
     try { data = raw ? JSON.parse(raw) : undefined } catch { data = raw }
-    if (!response.ok) throw new ApiError(response.status, `API request failed (${response.status})`, data)
-    // The spec does not define mutation response bodies. Refetch after success.
-    if (mutation) return undefined as T
+    // FastAPI puts the reason in `detail`; a 403 with kind 'segregation_of_duties' is the SoD throw.
+    if (!response.ok) {
+      const detail = typeof data === 'object' && data && 'detail' in data ? String((data as { detail: unknown }).detail) : undefined
+      throw new ApiError(response.status, detail ?? `API request failed (${response.status})`, data)
+    }
+    // A mutation may answer with nothing; refetch what it changed either way.
+    if (mutation) return (raw ? data : undefined) as T
     if (!raw || typeof data === 'string') throw new ApiError(response.status, 'Expected a JSON response.', data)
     return data as T
   }
   return {
-    getPeriod: (period, options) => request(`/period/${validatePeriod(period)}`, options),
+    getClock: options => request('/clock', options),
+    getPeriod: (period, options?: AsOfOptions) => request(`/period/${validatePeriod(period)}${query({ as_of: options?.asOf })}`, options),
     stepPeriod: (period, options) => request(`/period/${validatePeriod(period)}/step`, options, undefined, true),
+    signPeriod: async (period, customerId, signedBy, options) => {
+      await request(`/period/${validatePeriod(period)}/sign`, options, { customer_id: customerId, ...(signedBy ? { signed_by: signedBy } : {}) }, true)
+    },
+    getPackage: (period, options) => request(`/period/${validatePeriod(period)}/package${query({ as_of: options?.asOf })}`, options),
+    exportUrl: (period, file, asOf) => `${base}/period/${validatePeriod(period)}/export/${file}${query({ as_of: asOf })}`,
     getControls: async options => adaptControls(await request<Control[]>('/controls', options)),
-    getEscalations: options => request('/escalations?open=true', options),
-    answerEscalation: (id, answer, options) => request(`/escalations/${encodeURIComponent(id)}/answer`, options, { answer }, true),
+    getPrecedent: (kind, id, options) => request(`/precedents/${kind}/${encodeURIComponent(id)}`, options),
+    getEscalations: options => request(`/escalations${query({ open: String(options?.open ?? true) })}`, options),
+    answerEscalation: (id, answer, options) => request(`/escalations/${encodeURIComponent(id)}/answer`, options,
+      { answer, answered_by: options?.answeredBy, reasoning: options?.reasoning }, true),
     explainEntry: (id, options) => request(`/explain/${encodeURIComponent(id)}`, options),
-    getMetrics: async (period, options) => adaptMetrics(await request<Metrics>(`/metrics?as_of=${validatePeriod(period)}`, options)),
+    ask: (question, options) => request('/ask', options, { question }, true),
+    getMetrics: async (period, options) => adaptMetrics(await request<Metrics>(`/metrics?as_of=${encodeURIComponent(period)}`, options)),
   }
 }

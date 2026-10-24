@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tpa.db import connect, reset_schema  # noqa: E402
 from tpa.seed.generate import build  # noqa: E402
-from tpa.seed.load import load, write_files  # noqa: E402
+from tpa.seed.load import fingerprint, load, write_files  # noqa: E402
 
 
 def main() -> None:
@@ -52,6 +52,7 @@ def main() -> None:
     for p in m["periods"]:
         print(f"  {p['period']}  {p['net_cases_from_effective_date']:>9,} cases  catch-up ${p['catch_up']:>12,}")
     print(f"  total catch-up ${m['total_catch_up']:,}")
+    print(f"\nfingerprint {fingerprint(ds)}  (same on every machine for the same seed)")
 
 
 if __name__ == "__main__":

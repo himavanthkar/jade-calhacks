@@ -164,3 +164,10 @@ def test_loads_into_schema(conn, ds):
                        AND (valid_to IS NULL OR valid_to >= '2026-03-01')
                        ORDER BY decision_time DESC, valid_from DESC LIMIT 1""")
         assert cur.fetchone()[0] == Decimal("4.200000")
+
+
+def test_the_seed_is_byte_for_byte_reproducible():
+    """Everyone on seed 1337 holds the same data. If this changes, the fiction changed: say so in the
+    commit and tell the team to re-seed, because the answer key and the demo numbers move with it."""
+    from tpa.seed.load import fingerprint
+    assert fingerprint(build(1337, 24)) == "72a7f2811d410a9d"

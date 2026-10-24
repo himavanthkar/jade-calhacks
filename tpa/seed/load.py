@@ -1,5 +1,6 @@
 """Write a generated Dataset into Postgres and its answer key to disk."""
 
+import hashlib
 import json
 from datetime import date, datetime
 from decimal import Decimal
@@ -52,6 +53,13 @@ def _jsonable(v):
     if isinstance(v, (date, datetime)):
         return v.isoformat()
     raise TypeError(f"cannot serialise {type(v).__name__}")
+
+
+def fingerprint(ds: Dataset) -> str:
+    """A short hash of every generated row and the answer key. Two machines with the same
+    fingerprint hold exactly the same data; tests/test_seed.py pins the seed-1337 value."""
+    blob = json.dumps({"tables": ds.tables, "answer_key": ds.answer_key}, default=_jsonable, sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
 def write_files(ds: Dataset, out_dir: Path) -> list[Path]:

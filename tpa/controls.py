@@ -9,11 +9,11 @@ mined threshold, and only hits over threshold become findings.
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 import psycopg
 
-from tpa.accrual import backup_variance, rate, straddles_quarter_end
+from tpa.accrual import backup_variance, money, rate, straddles_quarter_end
 from tpa.asof import terms_as_of
 from tpa.constants import Control as C, period_end, period_start
 from tpa.policy import SEVERITY_BANDS, STRADDLE_CONFIDENCE, TERMS_READING_CONFIDENCE, VARIANCE_NOISE_FLOOR_PCT
@@ -222,7 +222,7 @@ def check_deduction(cur: psycopg.Cursor, ded: dict, program_id: str | None, as_o
         diff = ded["claimed_rate"] - terms["rate"]
         units = backup["scan_units"] if backup and backup["scan_units"] else None
         exposure = abs(diff) * units if units else amount
-        hits.append(Hit(C.RATE_CONFLICT, "claimed_rate", None, amount, exposure.quantize(Decimal("0.01")),
+        hits.append(Hit(C.RATE_CONFLICT, "claimed_rate", None, amount, money(exposure),
                         f"{ded['id']} claims {ded['claimed_period']} at ${rate(ded['claimed_rate'])}/case. "
                         f"{program_id} as we hold it says ${rate(terms['rate'])}/case "
                         f"({terms['source_clause_id']}). Which is the source of truth?",
@@ -232,7 +232,7 @@ def check_deduction(cur: psycopg.Cursor, ded: dict, program_id: str | None, as_o
     if backup and backup["scan_units"] and backup["scan_rate"]:
         v = backup_variance(amount, backup["scan_units"], backup["scan_rate"]) * HUNDRED
         if v > VARIANCE_NOISE_FLOOR_PCT:
-            supported = (Decimal(backup["scan_units"]) * backup["scan_rate"]).quantize(Decimal("0.01"))
+            supported = money(Decimal(backup["scan_units"]) * backup["scan_rate"])
             hits.append(Hit(C.CLAIM_VS_BACKUP, "backup_variance", v.quantize(Decimal("0.0001")), amount,
                             abs(amount - supported),
                             f"{ded['id']} claims ${amount:,}; backup supports ${supported:,} "
@@ -296,8 +296,8 @@ def check_redemption(cur: psycopg.Cursor, program_id: str, origin: str, as_of: d
         return None
     projected = term["projected_redemption"]
     actual = (units / Decimal(net)).quantize(Decimal("0.0001"))
-    drift = ((actual - projected) / projected * HUNDRED).quantize(Decimal("0.01"))
-    exposure = (abs(actual - projected) * Decimal(net) * term["rate"]).quantize(Decimal("0.01"))
+    drift = ((actual - projected) / projected * HUNDRED).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    exposure = money(abs(actual - projected) * Decimal(net) * term["rate"])
     return Hit(C.REDEMPTION_DRIFT, "redemption_drift", abs(drift), exposure, exposure,
                f"{program_id} {origin}: claims show {actual:.2%} sell-through against the {projected:.0%} we accrue at "
                f"({'+' if drift > 0 else ''}{drift}%). Each open month is {'under' if drift > 0 else 'over'}-accrued by "

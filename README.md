@@ -49,6 +49,8 @@ Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `
 
 ## What is real and what is simulated
 
+How the data is made, what is (and deliberately isn't) done to it, and how teammates get the same rows: [`DATA.md`](DATA.md).
+
 | | Source |
 | --- | --- |
 | **Real** | General Mills (CIK 0000040704) and its customers Walmart, Costco and Kroger. From the FY2026 10-K (filed 2026-07-01): net sales $18.42B, North America Retail $10.57B, Walmart 22% of net sales and 31% of North America Retail, accrued trade and coupon promotion liabilities $493M, and the trade promotion policy the ledger follows (accrue at the time of sale on estimated participation; differences are a change in estimate later). FY2025 too: $19.49B, $470M. Every figure is cited in `tpa/seed/calibration.py`; `scripts/pull_10k.py` re-reads them from EDGAR. |

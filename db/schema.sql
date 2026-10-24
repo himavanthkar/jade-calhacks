@@ -275,6 +275,18 @@ CREATE TABLE periods (
   PRIMARY KEY (period, customer_id)
 );
 
+-- Every signature, kept forever. periods.signed_by/at is the latest; a period
+-- re-signed after restatement keeps its original sign-off here.
+CREATE TABLE period_signoffs (
+  id BIGSERIAL PRIMARY KEY,
+  period TEXT NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  signed_by TEXT NOT NULL REFERENCES actors(id),
+  signed_at TIMESTAMP NOT NULL,
+  gate_results JSONB NOT NULL,
+  FOREIGN KEY (period, customer_id) REFERENCES periods(period, customer_id)
+);
+
 CREATE TABLE ledger_entries (
   id TEXT PRIMARY KEY,                -- 'JE-1184-1' (journal id + line number)
   journal_id TEXT NOT NULL,           -- 'JE-1184'; debits = credits per journal
@@ -290,7 +302,11 @@ CREATE TABLE ledger_entries (
   reversal_of TEXT REFERENCES ledger_entries(id),   -- the accrual line this reverses
   restates TEXT REFERENCES ledger_entries(id),      -- the line this restates
   source_finding_id TEXT REFERENCES findings(id),
-  valid_time DATE NOT NULL,           -- the period it belongs to
+  deduction_id TEXT REFERENCES deductions(id),      -- the deduction a clearing or dispute line settles
+  -- valid_time: the last day of the activity period the money relates to. For
+  -- accrual and clearing lines that is the shipment (origin) period, so a Feb
+  -- accrual cleared in July still carries valid_time 2026-02-28.
+  valid_time DATE NOT NULL,
   decision_time TIMESTAMP NOT NULL,   -- when we knew it
   approved_by TEXT REFERENCES actors(id),
   CHECK ((debit = 0) <> (credit = 0))  -- exactly one side per line
@@ -323,7 +339,7 @@ CREATE TABLE flux_commentary (
 -- 1. Insert-only.
 CREATE FUNCTION ledger_forbid_mutation() RETURNS trigger AS $$
 BEGIN
-  RAISE EXCEPTION 'ledger_entries is insert-only (% rejected); post a reversing or restating entry instead', TG_OP;
+  RAISE EXCEPTION '% is insert-only (% rejected); post a reversing or restating entry instead', TG_TABLE_NAME, TG_OP;
 END
 $$ LANGUAGE plpgsql;
 
@@ -335,14 +351,20 @@ CREATE TRIGGER ledger_no_truncate
   BEFORE TRUNCATE ON ledger_entries
   FOR EACH STATEMENT EXECUTE FUNCTION ledger_forbid_mutation();
 
--- 2. Signed and closed periods only accept restating entries.
+CREATE TRIGGER signoffs_no_update_delete
+  BEFORE UPDATE OR DELETE ON period_signoffs
+  FOR EACH ROW EXECUTE FUNCTION ledger_forbid_mutation();
+
+-- 2. A period that has ever been signed only accepts restating entries, including
+--    while it is RESTATED and working back through review to a new signature.
 CREATE FUNCTION ledger_check_period_open() RETURNS trigger AS $$
 DECLARE
   s TEXT;
+  signed TIMESTAMP;
 BEGIN
-  SELECT state INTO s FROM periods
+  SELECT state, signed_at INTO s, signed FROM periods
    WHERE period = NEW.period AND customer_id = NEW.customer_id;
-  IF s IN ('SIGNED', 'CLOSED') AND NEW.restates IS NULL THEN
+  IF (s IN ('SIGNED', 'CLOSED') OR signed IS NOT NULL) AND NEW.restates IS NULL THEN
     RAISE EXCEPTION 'period % for % is %; only restating entries may be written to it',
       NEW.period, NEW.customer_id, s;
   END IF;
@@ -378,6 +400,9 @@ CREATE CONSTRAINT TRIGGER ledger_journal_balanced
 -- 4. Signed periods cannot be quietly unsigned or edited back to OPEN.
 CREATE FUNCTION periods_check_transition() RETURNS trigger AS $$
 BEGIN
+  IF OLD.signed_at IS NOT NULL AND NEW.signed_at IS NULL THEN
+    RAISE EXCEPTION 'period % for % was signed; a signature cannot be removed', OLD.period, OLD.customer_id;
+  END IF;
   IF OLD.state IN ('SIGNED', 'CLOSED') AND NEW.state NOT IN ('SIGNED', 'CLOSED', 'RESTATED') THEN
     RAISE EXCEPTION 'period % for % is %; it can only move to RESTATED', OLD.period, OLD.customer_id, OLD.state;
   END IF;

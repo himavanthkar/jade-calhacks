@@ -47,6 +47,15 @@ Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `
 - `tpa/export.py`, `scripts/export.py` — that package as CSVs (ledger, trial balance, reconciliation, gates) with TOTAL and CHECK formula rows Excel recomputes. `--period 2026-02 --as-of month-2` and `--as-of month-8` give February's two correct answers.
 - `tpa/model.py` — the only doorway to Claude, off unless `TPA_USE_MODEL=1` and `ANTHROPIC_API_KEY` are set (`TPA_MODEL` overrides `claude-opus-5-5`). A drafted card that changes any number or record id is thrown away.
 
+## What is real and what is simulated
+
+| | Source |
+| --- | --- |
+| **Real** | General Mills (CIK 0000040704) and its customers Walmart, Costco and Kroger. From the FY2026 10-K (filed 2026-07-01): net sales $18.42B, North America Retail $10.57B, Walmart 22% of net sales and 31% of North America Retail, accrued trade and coupon promotion liabilities $493M, and the trade promotion policy the ledger follows (accrue at the time of sale on estimated participation; differences are a change in estimate later). FY2025 too: $19.49B, $470M. Every figure is cited in `tpa/seed/calibration.py`; `scripts/pull_10k.py` re-reads them from EDGAR. |
+| **Simulated** | Every transaction: 24 months of shipments, invoices, returns, deductions, claim backup and disputes, the trade programs and their terms, the prior year's human decisions, and the people (role titles only). Transaction-level trade data is never public on either side. |
+| **How it fits** | One brand family at Walmart is $348M a year, about 11% of General Mills' North America Retail sales to Walmart. The $1.39M catch-up is 4.8% of TP-0214's annual accrual and 0.008% of net sales: material to the program, immaterial to the company. |
+| **How we know it works** | 50 planted errors with an answer key; precision and recall from `scripts/evaluate.py`. |
+
 ## Plugging into the engine (workstreams C and D)
 
 `tpa.cycle.Hooks` is where judgment plugs in. The defaults let the engine run alone, deciding only what a mined control allows the agent and never approving or signing:
@@ -61,6 +70,7 @@ Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `
 After a human answers, call `tpa.execute.execute(cur, finding_id, decision, decided_by, at)`; decisions are listed in its docstring. A source-of-truth answer decides *what* is authorised and never approves a posting itself. Clears go through the agent's mined tolerance, and anything over it raises its own DED-GT-ACCRUAL finding.
 
 Finding `evidence` always carries `summary` (the card's lede and question), `control` (id, name, threshold, owner, precedent ids, learned), `measure`, and the ids involved (`deduction_ids`, `program_id`, `origin`, `accrual_key`, `amendment_id`, `journal_ids`, …) plus check-specific facts. API mapping: `POST /api/period/{p}/step` → `cycle.step`; `GET /api/controls` → `controls` joined to finding counts; `GET /api/explain/{entry_id}` → `asof.entry_history`.
+- `tpa/seed/calibration.py`, `scripts/pull_10k.py` — the real 10-K figures with their quotes, and the EDGAR pull that re-reads them (needs `SEC_USER_AGENT`).
 - `tpa/seed/` — the deterministic generator. `fiction.py` holds every frozen name, rate and volume; `plant.py` plants the prior-year human decisions and the 50 live errors.
 - `data/answer_key.json` (generated) — `planted` (the 50), `behavioural` (expected findings that are not errors), `moment` (the TP-0214 catch-up by period), `controls_truth` (what the miner should find, with precedent ids).
 - `data/program_terms_truth.json` (generated) — ground-truth term extraction. `--load-terms` loads it so nothing waits on the extractor.

@@ -1,13 +1,13 @@
 # Trade Promotion — General Mills
 
-React + TypeScript + Vite. Screens are owned by D; the current starter screen is unchanged. Frontend API scaffolding is ready for mock-based development.
+React + TypeScript + Vite. Screens are owned by D; the current screen is a static grayscale wireframe. Frontend API scaffolding is ready for mock-based development.
 
 ```sh
 bun install
 bun run --bun dev
 ```
 
-Default mode is mock; no backend is required. Copy `.env.example` to `.env.local` to configure HTTP mode. See [API contract](docs/API_CONTRACT.md) for endpoints, integration examples and items to confirm with B/C.
+Default mode is mock; no backend is required. Copy `.env.example` to `.env.local` to configure HTTP mode.
 
 ```sh
 bun run build

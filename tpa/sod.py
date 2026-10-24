@@ -1,7 +1,7 @@
 """Segregation of duties: a capability check in code that throws, not a prompt instruction.
 
-`can_approve` raises when the actor negotiated the program the target arises from, and when the
-actor is the agent itself. Every approval path calls it first: answering an escalation, applying
+`can_approve` raises when the actor negotiated the program the target arises from, when a sales
+lead approves something no program can be traced to (unverifiable), and when the actor is the agent. Every approval path calls it first: answering an escalation, applying
 a restatement, a scripted human action. A blocked attempt is recorded as a finding with
 escalation_type 'sod' so the attempt itself is on the record, and the approval stays with the
 controller.
@@ -73,6 +73,11 @@ def can_approve(cur: psycopg.Cursor, actor_id: str, target_type: str, target_id:
         raise SegregationOfDutiesError(
             f"{a['name']} negotiated {program['id']} for {program['customer']}; approval routed to controller.",
             actor=a, program=program, target_type=target_type, target_id=target_id)
+    if program is None and a["role"] == "sales_lead":
+        # No program means no way to show they didn't negotiate it: unverifiable, so blocked.
+        raise SegregationOfDutiesError(
+            f"{target_id} isn't matched to a program, so it can't be shown that {a['name']} didn't negotiate it; "
+            f"approval routed to controller.", actor=a, program=None, target_type=target_type, target_id=target_id)
 
 
 def ensure_control(cur: psycopg.Cursor, at: datetime) -> dict:

@@ -155,6 +155,20 @@ CREATE TABLE historical_decisions (
 
 -- Things the model-played humans will try to do on a given simulated date,
 -- e.g. a sales lead approving a claim on their own program.
+-- Rows a person injected live (POST /api/scenario): what they asked for and the source rows it
+-- made. The engine handles them like any other data; the evaluator scores them apart, since the
+-- answer key never planted them.
+CREATE TABLE scenario_injections (
+  id TEXT PRIMARY KEY,                -- 'SC-0001'
+  kind TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  created_ids TEXT[] NOT NULL,
+  period TEXT NOT NULL,               -- the month it lands in
+  sim_date DATE NOT NULL,             -- the day it lands
+  injected_by TEXT,
+  injected_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
 CREATE TABLE scripted_events (
   id TEXT PRIMARY KEY,                -- 'EV-…'
   sim_date DATE NOT NULL,

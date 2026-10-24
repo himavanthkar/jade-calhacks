@@ -12,6 +12,9 @@
     GET  /api/explain/{entry_id}       → the evidence chain
     POST /api/ask                      → { question } the interrogation box
     GET  /api/metrics?as_of={period}   → { precision, recall, escalation_rate, autonomy }
+    GET  /api/scenario/examples        → ready-made scenarios against the books as they stand
+    POST /api/scenario                 → { kind, payload, step? } add source rows to the month the clock is on
+    GET  /api/scenario                 → everything injected so far
 
 Decimals go out as strings, never floats. Who answers a step's escalations is TPA_HUMANS:
 'inbox' (default: cards wait for a person), 'players' (the model-played humans) or 'autopilot'.
@@ -34,7 +37,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from tpa import autopilot, explain, export, judgment, players
+from tpa import autopilot, explain, export, judgment, players, scenario
 from tpa.package import package as signoff_package
 from tpa.asof import sim_clock
 from tpa.constants import live_month, period_end, period_start
@@ -298,6 +301,45 @@ def metrics(as_of: str, conn=Depends(db)):
         raise HTTPException(404, "no answer key: run make seed")
     with conn.cursor() as cur:
         return out(evaluate_metrics(cur, json.loads(ANSWER_KEY.read_text()), as_of))
+
+
+class Injection(BaseModel):
+    kind: str
+    payload: dict
+    step: bool = False                 # also run the month, so the scenario plays out at once
+    injected_by: str | None = None
+
+
+@app.get("/api/scenario/examples")
+def scenario_examples(conn=Depends(db)):
+    with conn.cursor() as cur:
+        return out(scenario.examples(cur))
+
+
+@app.get("/api/scenario")
+def scenario_list(conn=Depends(db)):
+    with conn.cursor() as cur:
+        return out(scenario.injections(cur))
+
+
+@app.post("/api/scenario")
+def inject(body: Injection, conn=Depends(db)):
+    """The judge's own scenario: rows land in the month the clock is on and the engine meets them
+    on the next step, as it meets everything else."""
+    with conn.cursor() as cur:
+        try:
+            made = scenario.inject(cur, body.kind, body.payload, injected_by=body.injected_by)
+        except scenario.ScenarioError as err:
+            raise HTTPException(422, str(err)) from err
+    conn.commit()
+    if not body.step:
+        return out(made)
+    summary = step(conn, hooks())
+    with conn.cursor() as cur:
+        touched = all_rows(cur, """SELECT * FROM findings WHERE period = %s AND EXISTS (
+                                     SELECT 1 FROM jsonb_array_elements_text(jsonb_path_query_array(evidence, 'strict $.**'))
+                                     AS x(v) WHERE x.v = ANY(%s)) ORDER BY id""", (made["period"], made["created_ids"]))
+    return out({**made, "step": summary, "findings": touched})
 
 
 @app.post("/api/reset")

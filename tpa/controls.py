@@ -15,7 +15,7 @@ import psycopg
 
 from tpa.accrual import backup_variance, money, rate, straddles_quarter_end
 from tpa.asof import terms_as_of
-from tpa.constants import Control as C, period_end, period_start
+from tpa.constants import HISTORY_MONTHS, Control as C, period_end, period_for_month, period_start
 from tpa.policy import SEVERITY_BANDS, STRADDLE_CONFIDENCE, TERMS_READING_CONFIDENCE, VARIANCE_NOISE_FLOOR_PCT
 from tpa.rows import all_rows, one_row
 
@@ -251,6 +251,13 @@ def root_cause(hits: list[Hit]) -> list[Hit]:
 # History cannot teach this tolerance; it is stated policy (tpa.policy.DRIFT_TOLERANCE_PCT).
 
 
+def claim_streams(cur: psycopg.Cursor, customer_id: str) -> set[str]:
+    """The scan-back claim streams (reason codes) a customer sent during the history year."""
+    cur.execute("""SELECT DISTINCT reason_code FROM deductions WHERE customer_id = %s AND reason_code LIKE 'SB-%%'
+                     AND available_at <= %s""", (customer_id, period_end(period_for_month(max(HISTORY_MONTHS)))))
+    return {r for (r,) in cur.fetchall()}
+
+
 def check_redemption(cur: psycopg.Cursor, program_id: str, origin: str, as_of: datetime) -> Hit | None:
     """Actual sell-through for an origin whose claims have landed, against the projection we accrue at."""
     term = terms_as_of(cur, program_id, period_end(origin), as_of)
@@ -288,9 +295,12 @@ def check_redemption(cur: psycopg.Cursor, program_id: str, origin: str, as_of: d
         ids.append(d["id"])
         days = covered.setdefault(d["reason_code"], set())
         days.update(range(lo.toordinal(), hi.toordinal() + 1))
-    # Judge sell-through only once every claim stream covers every day of the origin.
+    # Judge sell-through only once every claim stream the customer sends covers every day of the
+    # origin. The streams expected are the ones its history used; a stream not yet here means the
+    # month's claims are incomplete, however whole the ones that have landed look.
     month = set(range(start.toordinal(), end.toordinal() + 1))
-    if not covered or any(days != month for days in covered.values()):
+    expected = claim_streams(cur, term["customer_id"]) or set(covered)
+    if not covered or not expected <= set(covered) or any(covered[s] != month for s in expected):
         return None
     if not ids:
         return None

@@ -10,6 +10,7 @@ order the business would see them, and the period closes on its last day:
   each day   08:00  late returns   → RETURNS-NOT-NETTED, origin accrual re-made net of them
              10:00  amendments     → restatement of every accrued period they reach back into
              12:00  deductions     → recorded, matched, row controls, cleared if authorised
+             13:00  late backup    → a claim held for missing backup is re-checked, and cleared if it passes
              15:00  scripted human actions, handed to `hooks.on_event`
   close      18:00  revenue; accruals (spec steps 1–5); clearing deferred to the accrual
              20:00  gates; sign-off of every customer-period with nothing left open
@@ -38,7 +39,7 @@ from tpa.controls import (
 )
 from tpa.execute import (
     accrual_posted, authorise, controls, execute, finding, raise_finding, record_deduction, scan_back_estimate,
-    segments_memo,
+    segments_memo, set_finding_state, withdraw_dispute,
 )
 from tpa.flux import write_flux
 from tpa.review import write_review
@@ -49,7 +50,8 @@ from tpa.policy import DRIFT_OWNER, DRIFT_TOLERANCE_PCT
 from tpa.restate import on_amendment
 from tpa.rows import all_rows, one_row
 
-RETURNS_AT, AMENDMENTS_AT, DEDUCTIONS_AT, EVENTS_AT = time(8), time(10), time(12), time(15)
+RETURNS_AT, AMENDMENTS_AT, DEDUCTIONS_AT, BACKUP_AT, EVENTS_AT = time(8), time(10), time(12), time(13), time(15)
+WAITING_ON_BACKUP = (C.SCAN_NO_BACKUP, C.NO_PROOF)
 CLOSE_AT, SIGN_AT, FLUX_AT = time(18), time(20), time(21)
 UNRESOLVED = ("open", "escalated")
 
@@ -179,6 +181,48 @@ def on_deduction(run: Run, ded: dict, when: datetime) -> None:
     run.judge(fid, when)
 
 
+def on_backup(run: Run, backup: dict, when: datetime) -> None:
+    """Backup for a claim we held or disputed because it had none: check the claim again, as if it
+    had just arrived. If it now passes, take back our own dispute and clear it; if the backup shows
+    a different problem, raise that instead. Backup for a claim nobody was waiting on changes nothing."""
+    cur = run.cur
+    ded = one_row(cur, "SELECT * FROM deductions WHERE id = %s AND available_at < %s", (backup["deduction_id"], when.date()))
+    if ded is None:
+        return
+    waiting = all_rows(cur, """SELECT * FROM findings WHERE control_id = ANY(%s) AND evidence -> 'deduction_ids' ? %s
+                                 AND (state IN ('open', 'escalated') OR evidence -> 'resolution' ->> 'decision' = 'dispute')
+                               ORDER BY id""", (list(WAITING_ON_BACKUP), ded["id"]))
+    if not waiting:
+        return
+    program_id = waiting[0]["evidence"].get("program_id") or ded["program_id"]
+    lib = controls(cur)
+    hits = [h for h in root_cause(check_deduction(cur, ded, program_id, when))
+            if h.control_id in lib and exceeds(h, lib[h.control_id]["threshold"])]
+    if any(h.control_id in WAITING_ON_BACKUP for h in hits):
+        run.log.append(f"{backup['id']} arrived for {ded['id']} but still doesn't support it; held")
+        return
+    withdrawn = withdraw_dispute(cur, ded, program_id, run.period, when, finding_id=waiting[0]["id"],
+                                 memo=f"Withdraw our dispute on {ded['id']}: backup {backup['id']} arrived "
+                                      f"{backup['received_date']}. The dispute was right while it was missing.")
+    for f in waiting:
+        cur.execute("""UPDATE escalations SET answer = %s, answered_at = %s
+                       WHERE finding_id = %s AND answered_at IS NULL""", (f"superseded:{backup['id']}", when, f["id"]))
+        set_finding_state(cur, f["id"], "resolved", {"decision": "superseded", "by": "agent", "at": when,
+                                                     "note": f"backup {backup['id']} arrived", "backup_id": backup["id"],
+                                                     "previous": (f["evidence"] or {}).get("resolution"),
+                                                     "withdrawn_dispute": withdrawn})
+    if hits:
+        top = hits[0]
+        top.evidence.update(matched="backup arrived", also=[h.control_id for h in hits[1:]])
+        run.judge(raise_finding(cur, top, period=run.period, customer_id=ded["customer_id"], at=when,
+                                control=lib[top.control_id]), when)
+        run.log.append(f"{backup['id']} arrived for {ded['id']}: now {top.control_id.removeprefix('CTL-')}")
+    else:
+        run.judge(authorise(cur, ded, program_id, run.period, when, deferred=run.deferred), when)
+        run.log.append(f"{backup['id']} arrived for {ded['id']}: supported, cleared"
+                       + (" (our dispute withdrawn)" if withdrawn else ""))
+
+
 def run_day(run: Run, d: date) -> None:
     cur = run.cur
     for ret in all_rows(cur, "SELECT * FROM returns WHERE available_at = %s ORDER BY id", (d,)):
@@ -188,6 +232,8 @@ def run_day(run: Run, d: date) -> None:
         run.log.append(f"{am['id']} landed: restatement finding {fid}")
     for ded in all_rows(cur, "SELECT * FROM deductions WHERE available_at = %s ORDER BY id", (d,)):
         on_deduction(run, ded, at(d, DEDUCTIONS_AT))
+    for backup in all_rows(cur, "SELECT * FROM claim_backup WHERE available_at = %s ORDER BY id", (d,)):
+        on_backup(run, backup, at(d, BACKUP_AT))
     for ev in all_rows(cur, "SELECT * FROM scripted_events WHERE sim_date = %s ORDER BY id", (d,)):
         run.hooks.on_event(cur, ev, at(d, EVENTS_AT))
 

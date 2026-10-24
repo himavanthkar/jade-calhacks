@@ -21,6 +21,10 @@ every generated row and the answer key, and `tests/test_seed.py` pins it. The sa
 fingerprint on every machine, every Python hash seed, every run. If the fingerprint changes, the fiction
 changed: re-seed, and expect the answer key and the demo numbers to move with it.
 
+**Rows injected live** (`POST /api/scenario`) are the one exception to "everything is the seed": they are
+recorded in `scenario_injections` with the ids they made, and the evaluator keeps their findings out of
+precision (`counts.scenario_findings`), since the answer key never planted them.
+
 ## Cleaning: none, by design
 
 There is no cleaning stage, and there must not be one. The generator writes straight into the source

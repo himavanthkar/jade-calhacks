@@ -12,6 +12,8 @@ Contracts the other workstreams rely on:
   expected period or later, carries a violation keyed with the row's accrual key.
 * The moment is caught by a finding citing AM-02 or its claims, or by any
   restatement journal on TP-0214.
+* Findings on rows injected live (`scenario_injections`) are left out of precision and counted
+  as `scenario_findings`: the answer key never planted them.
 """
 
 import json
@@ -68,6 +70,11 @@ def metrics(cur: psycopg.Cursor, answer_key: dict, as_of: str) -> dict:
         (as_of,),
     )
     findings = cur.fetchall()
+    # Findings on rows a person injected live are the judge's scenario, not the answer key's: scored apart.
+    cur.execute("SELECT created_ids FROM scenario_injections")
+    injected = {i for (ids,) in cur.fetchall() for i in ids}
+    scenario = [f for f in findings if ids_in(f[5] if not isinstance(f[5], str) else json.loads(f[5])) & injected]
+    findings = [f for f in findings if f not in scenario]
 
     caught: set[str] = set()
     true_pos, false_pos = 0, []
@@ -135,7 +142,7 @@ def metrics(cur: psycopg.Cursor, answer_key: dict, as_of: str) -> dict:
             "findings": len(findings), "true_positive_findings": true_pos, "false_positive_findings": len(false_pos),
             "planted_errors": len(errors), "caught": len(caught), "true_negatives": len(negatives),
             "findings_this_month": len(month), "escalated_this_month": escalated_month,
-            "customer_periods": len(periods),
+            "customer_periods": len(periods), "scenario_findings": len(scenario),
         },
         "missed": missed,
         "false_positives": false_pos,

@@ -1,43 +1,68 @@
+import { useEffect, useMemo, useState } from 'react'
+import { api, apiMode } from './api'
+import { createMockApi } from './api/mock'
+import type { Period, Metrics, Control, Escalation } from './api'
+import RecordWorkspace from './RecordWorkspace'
+import './Records.css'
 import './App.css'
 
-function App() {
-  return (
-    <main className="workspace">
-      <header className="page-header">
-        <div><h1>Trade Promotion</h1><p>General Mills</p></div>
-        <span className="status">Wireframe · Not connected</span>
-      </header>
+const icon = (name: string) => <img className="ui-icon" src={`/figma/${name}.svg`} alt="" />
+const pct = (n: number | null | undefined) => n == null ? '—' : `${(n * 100).toFixed(1)}%`
+const usd = (n: string | null | undefined) => n == null ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n))
+const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug']
+const keys = ['precision', 'recall', 'escalation_rate', 'autonomy'] as const
+const labels = ['Precision', 'Recall', 'Escalation rate', 'Autonomy']
 
-      <section className="panel" aria-labelledby="period-title">
-        <div className="panel-heading"><h2 id="period-title">01 / Month & Period</h2><span>Period: —</span></div>
-        <div className="toolbar"><button disabled aria-label="Previous month">←</button><span>Select month</span><button disabled aria-label="Next month">→</button><button disabled>Step month</button></div>
-        <div className="summary-grid">
-          {['Period status', 'Findings', 'Verification gates', 'Performance metrics'].map(label => <div className="placeholder" key={label}><span>{label}</span><strong>—</strong></div>)}
-        </div>
-        <div className="placeholder wide">Journal entries / Restatement comparison / Flux & close review</div>
-      </section>
-
-      <div className="content-grid">
-        <section className="panel" aria-labelledby="controls-title">
-          <h2 id="controls-title">02 / Controls Library</h2>
-          <div className="table-scroll"><table><thead><tr>{['Rule', 'Threshold', 'Owner', 'Precedent', 'Fired'].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody><tr><td colSpan={5}>Controls and supporting records will appear here.</td></tr></tbody></table></div>
-        </section>
-        <section className="panel" aria-labelledby="inbox-title">
-          <h2 id="inbox-title">03 / Escalation Inbox</h2>
-          <div className="placeholder wide">Question · Evidence · Decision options</div>
-          <p className="hint">Review requests and saved decisions will appear here.</p>
-        </section>
-      </div>
-
-      <section className="panel" aria-labelledby="explain-title">
-        <h2 id="explain-title">04 / Interrogation</h2>
-        <label htmlFor="question">Ask why a decision was made</label>
-        <div className="question-row"><input id="question" placeholder="Ask it why it did anything." disabled /><button disabled>Ask</button></div>
-        <div className="placeholder wide">Explanation / Evidence chain / Then vs now</div>
-      </section>
-      <footer>Layout placeholder only. Controls are disabled; no transactions or API requests are executed.</footer>
-    </main>
-  )
+export default function App() {
+  const client = useMemo(() => apiMode === 'mock' ? createMockApi('moment') : api, [])
+  const [data, setData] = useState<{period: Period; metrics: Metrics; baseline: Metrics; controls: Control[]; cards: Escalation[]}>()
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
+  const [view, setView] = useState('Overview')
+  const [drawer, setDrawer] = useState('')
+  const [query, setQuery] = useState('')
+  useEffect(() => {
+    const controller = new AbortController()
+    const options = { signal: controller.signal }
+    async function load() {
+      const clock = await client.getClock(options)
+      const periodKey = apiMode === 'mock' ? '2026-08' : clock.last_period || clock.current_period
+      const [period, metrics, baseline, controls, cards] = await Promise.all([client.getPeriod(periodKey, options), client.getMetrics(periodKey, options), client.getMetrics('month-1', options), client.getControls(options), client.getEscalations(options)])
+      if (!controller.signal.aborted) { setData({ period, metrics, baseline, controls, cards }); setError('') }
+    }
+    load().catch(e => { if (!controller.signal.aborted) setError(e.message) })
+    return () => controller.abort()
+  }, [client, retry])
+  useEffect(() => {
+    if (!drawer) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawer('') }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [drawer])
+  const finding = data?.period.findings.find(f => f.conflict_type === 'amendment_not_applied')
+  const open = data?.period.findings.filter(f => f.state === 'open' || f.state === 'escalated') ?? []
+  const gates = Object.values(data?.period.gates ?? {})
+  const monthIndex = data ? Number(data.period.period.slice(5)) : 8
+  const dateLabel = data ? new Date(`${data.period.period}-01T12:00:00`).toLocaleDateString('en-US', {month:'long',year:'numeric'}) : 'August 2026'
+  const nav = (name: string, asset: string) => <button className={`nav-item ${view === name ? 'active' : ''}`} onClick={() => setView(name)}>{icon(asset)}<span>{name}</span>{name !== 'Overview' && <span className="chevron">›</span>}</button>
+  return <div className="app-shell">
+    <aside className="sidebar"><a href="#" className="brand" onClick={e => {e.preventDefault();setView('Overview')}}><b className="brand-mark">T</b><span><strong>Tradewise</strong><small>TRADE PROMOTION<br/>AUTONOMY</small></span></a>
+      <div className="organization"><b>GM</b><div><strong>General Mills</strong><small>US Retail Finance</small></div>{icon('imgIcon13')}</div>
+      <p className="nav-label">WORKSPACE</p><nav>{nav('Overview', 'imgIcon14')}{nav('Month & Period','imgIcon15')}<div className="subnav">{['Period Status','Journal Entries','Verification Gates','Restatement Comparison','Flux & Close Review'].map(x=><button key={x} onClick={()=>setDrawer(x)}>{x}</button>)}</div>{nav('Controls Library','imgIcon17')}{nav('Escalation Inbox','imgIcon18')}{nav('Interrogation','imgIcon19')}</nav>
+      <div className="sidebar-bottom"><small>AUTONOMY STATUS</small><strong><i/> Month {monthIndex} · {data?.period.state.toLowerCase() ?? 'loading'}</strong><p>Evidence from captured API responses</p><span>{apiMode === 'mock' ? 'Seeded demo · Spec v1.0' : 'Connected API'}</span></div>
+    </aside>
+    <div className="main-shell"><header className="topbar"><form className="search" onSubmit={e=>{e.preventDefault();setDrawer(query ? `Search: ${query}` : 'Search records')}}>{icon('imgIcon')}<input aria-label="Search records" placeholder="Search programs, controls, evidence…" value={query} onChange={e=>setQuery(e.target.value)}/></form><div className="top-actions"><div className="current-month"><small>MONTH {monthIndex}</small><span>{dateLabel}</span></div><button className="step-button" onClick={()=>setDrawer('Month & Period')}>Step month</button><button className="icon-button" aria-label="Open escalation inbox" onClick={()=>setView('Escalation Inbox')}>{icon('imgIcon3')}</button><span className="avatar" title="Demo reviewer">AM</span></div></header>
+    {view !== 'Overview' ? <div className="records-view"><button onClick={()=>setView('Overview')}>← Overview</button><h1>{view}</h1><RecordWorkspace initialView={view}/></div> : <main className="overview">
+      <div className="overview-heading"><div><p className="eyebrow">MONTH {monthIndex} · {dateLabel.toUpperCase()}</p><h1>Trade Promotion Autonomy</h1><p>General Mills · US retail trade accounting</p></div><div className="heading-actions"><button onClick={()=>setView('Interrogation')}>{icon('imgIcon4')} Ask AI</button><button className="primary" onClick={()=>setDrawer('Month & Period')}>Review month close</button></div></div>
+      {error && <div className="error" role="alert">{error} <button onClick={()=>setRetry(n=>n+1)}>Retry</button></div>}
+      {!data && !error && <p role="status">Loading captured records…</p>}
+      <section className="finding-banner"><div className="finding-icon">{icon('imgIcon5')}</div><div className="finding-copy"><p className="eyebrow">{finding?.state === 'resolved' ? 'RESOLVED' : finding?.state.toUpperCase() ?? 'LOADING'} · WALMART · TP-0214</p><h2>Walmart promotion restatement{finding?.state === 'resolved' ? ' approved' : ''}</h2><p>August evidence revises prior-period accruals. Open the evidence to review the recorded decision.</p></div><div className="impact"><small>Restatement amount</small><strong>{usd(finding?.amount)}</strong><button onClick={()=>setDrawer('Restatement evidence')}>Open evidence {icon('imgIcon6')}</button></div></section>
+      <section className="kpi-grid" aria-label="Performance metrics">{keys.map((key,i)=>{const value=data?.metrics[key];const prior=data?.baseline[key];const delta=value!=null&&prior!=null?(value-prior)*100:null;return <article className="kpi" key={key}><div><span>{labels[i]}</span>{icon('imgIcon7')}</div><strong>{pct(value)}</strong><small>{delta==null?'Awaiting metrics':`${delta>0?'+':''}${delta.toFixed(1)} pts since Month 1`}</small><div className="meter"><span style={{width:`${(value??0)*100}%`}}/></div></article>})}</section>
+      <div className="operations-grid"><section className="month-panel"><div className="section-title"><h2>Month Stepper</h2><span className="green">● Month {monthIndex} {data?.period.state.toLowerCase()}</span></div><div className="month-track">{months.map((m,i)=><div key={m} className={i===monthIndex-1?'selected':''}><span>{i===monthIndex-1?monthIndex:'✓'}</span><small>{m}</small></div>)}</div><div className="counts">{[['Journal lines',data?.period.postings.length],['Verification gates',data?`${gates.filter(g=>g.passed).length}/${gates.length}`:undefined],['Open findings',data?open.length:undefined],['Learned controls',data?.controls.filter(c=>c.learned).length]].map(([label,n])=><div key={label}><small>{label}</small><strong>{n??'—'}</strong></div>)}</div><div className="activity"><button onClick={()=>setDrawer('Verification Gates')}><span className="green">✓</span><div><strong>Verification gates</strong><small>{data?`${gates.filter(g=>g.passed).length} of ${gates.length} gates passed`:'Loading gate results'}</small></div><span>Review →</span></button><button onClick={()=>setDrawer('Restatement evidence')}><span>△</span><div><strong>Historical restatement {finding?.state??''}</strong><small>Walmart TP-0214 · Evidence-backed decision</small></div><span>View →</span></button><button onClick={()=>setView('Controls Library')}><span>✧</span><div><strong>{data?.controls.length??'—'} controls in library</strong><small>Review thresholds, owners and precedents</small></div><span>Explore →</span></button></div></section>
+      <section className="attention-panel"><div className="section-title"><h2>Requires attention</h2><span className="green">● {data?.cards.length??'—'}</span></div><article><small className="green">● {data?.cards.length ? 'Review requested' : 'Up to date'}</small><h3>{data?.cards.length ? `${data.cards.length} open review requests` : 'No open escalations'}</h3><p>For the selected API snapshot.</p><button onClick={()=>setView('Escalation Inbox')}>Open inbox ›</button></article><article><small>PERIOD CLOSE</small><h3>{data?.period.customers.filter(c=>c.state==='CLOSED').length??'—'} customer periods closed</h3><p>Walmart · Costco · Kroger</p><button onClick={()=>setDrawer('Month & Period')}>Review close ›</button></article><article><small>RECORDED DECISION</small><h3>Walmart restatement</h3><p>{finding?.id??'—'} · {finding?.state??'Loading'}</p><button onClick={()=>setDrawer('Restatement evidence')}>Review evidence ›</button></article></section></div>
+      <div className="charts-grid"><section className="chart-card"><div className="section-title"><h2>AI Performance Over Time</h2><span className="badge">CAPTURED</span></div><p>Month 1 and Month {monthIndex} · available snapshots</p><div className="comparison-chart">{[0,1,3].map(i=><div key={i}><span>{labels[i]}</span><div><div className="comparison-bar baseline" style={{width:`${(data?.baseline[keys[i]]??0)*100}%`}}/><div className={`comparison-bar series-${i}`} style={{width:`${(data?.metrics[keys[i]]??0)*100}%`}}/></div><strong>{pct(data?.metrics[keys[i]])}</strong></div>)}</div><div className="chart-legend"><span><i className="baseline"/>Month 1</span><span><i/>Month {monthIndex}</span></div><small>Intermediate monthly snapshots are not supplied.</small></section><section className="chart-card exposure"><h2>Restatement by Customer</h2><p>Captured finding · recorded amount</p><div className="exposure-row"><strong>Walmart</strong><b>{usd(finding?.amount)}</b></div><div className="exposure-bar"/><div className="exposure-note"><span className="green">● {finding?.state??'Loading'}</span><p>TP-0214 · Historical accrual correction</p></div><button onClick={()=>setDrawer('Restatement evidence')}>Inspect supporting evidence →</button><small>Seeded simulation · Not actual General Mills financial data</small></section></div>
+      <footer className="overview-footer">{apiMode==='mock'?'Captured backend fixtures · Seed 1337':'Connected API'} · Values follow API responses; this is a demonstration workspace.</footer>
+    </main>}</div>
+    {drawer && <div className="modal-backdrop" onClick={()=>setDrawer('')}><section className="detail-dialog" role="dialog" aria-modal="true" aria-label={drawer} onClick={e=>e.stopPropagation()}><header><h2>{drawer}</h2><button autoFocus aria-label="Close details" onClick={()=>setDrawer('')}>✕</button></header>{drawer==='Restatement evidence'?<div className="evidence-detail"><h3>{usd(finding?.amount)} · {finding?.state}</h3><p>{String(finding?.evidence.summary??'No restatement available.')}</p><pre>{JSON.stringify(finding?.evidence,null,2)}</pre></div>:<RecordWorkspace initialView={drawer}/>}</section></div>}
+  </div>
 }
-
-export default App

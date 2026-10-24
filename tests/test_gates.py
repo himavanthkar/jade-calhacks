@@ -191,3 +191,50 @@ def test_sign_records_a_permanent_signoff(base):
         assert cur.fetchone() == ("SIGNED",)
         cur.execute("SELECT signed_by FROM period_signoffs")
         assert cur.fetchall() == [("controller",)]
+
+
+def display_program(cur):
+    """A per-event program, Q1 only: one $1,000 display event a month."""
+    cur.execute("INSERT INTO trade_programs VALUES ('TP-0299', 'WMT', 'display terms', 'display', '2026-01-02', "
+                "'sales.walmart', '2026-01-02')")
+    cur.execute("""INSERT INTO program_terms (id, program_id, customer_id, program_type, rate, rate_unit, base_definition,
+                                              window_start, window_end, requires_proof, valid_from, decision_time)
+                   VALUES ('PT-9', 'TP-0299', 'WMT', 'display', 1000, 'lump_sum', 'fixed', '2026-01-01', '2026-03-31',
+                           false, '2026-01-01', '2026-01-02')""")
+
+
+def clear_event(cur, ded_id, start, end, origin_end, claimed="2026-04"):
+    deduction(cur, ded_id, claimed)
+    cur.execute("UPDATE deductions SET program_id = 'TP-0299', claim_start = %s, claim_end = %s WHERE id = %s",
+                (start, end, ded_id))
+    a = Decimal("1000.00")
+    post_journal(cur, entry_type="clearing", period="2026-05", customer_id="WMT", program_id="TP-0299",
+                 decision_time=datetime(2026, 5, 20),
+                 lines=[Line(Account.ACCRUED_TRADE_PROMO, debit=a, valid_time=origin_end, deduction_id=ded_id),
+                        Line(Account.DEDUCTIONS_PENDING, credit=a, valid_time=origin_end, deduction_id=ded_id)])
+
+
+def test_an_event_belongs_to_the_month_it_starts_in(base):
+    """A display event that starts in March and runs into April clears whole against March, inside Q1."""
+    with base.cursor() as cur:
+        display_program(cur)
+        clear_event(cur, "DD-1", date(2026, 3, 26), date(2026, 4, 8), date(2026, 3, 31))
+        assert gate(cur, "claims_inside_window", "2026-05").passed
+
+
+def test_an_event_starting_outside_the_window_still_fails(base):
+    with base.cursor() as cur:
+        display_program(cur)
+        clear_event(cur, "DD-1", date(2026, 4, 2), date(2026, 4, 15), date(2026, 3, 31))
+        g = gate(cur, "claims_inside_window", "2026-05")
+    assert [v["reason"] for v in g.violations] == ["cleared against a month the event doesn't start in"]
+
+
+def test_a_scan_back_claim_past_the_window_end_still_fails(base):
+    """The per-event dating applies to events only: volume claims are checked across their whole span."""
+    with base.cursor() as cur:
+        terms(cur, valid_from=date(2025, 1, 1))
+        deduction(cur, "DD-1", "2026-12")
+        claim_dates(cur, "DD-1", date(2026, 12, 20), date(2027, 1, 5))
+        clear(cur, "2026-03", "10.00", date(2026, 12, 31), datetime(2026, 3, 20), "DD-1")
+        assert not gate(cur, "claims_inside_window", "2026-03").passed

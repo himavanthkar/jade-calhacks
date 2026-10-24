@@ -485,8 +485,12 @@ def execute(cur: psycopg.Cursor, finding_id: str, decision: str, decided_by: str
             elif decision == "allocate":
                 start, end = claim_dates(ded)
                 origins = _origins_between(start, end)
-                shares = split_by_activity(pending, start, end, [(period_start(o), period_end(o)) for o in origins])
+                basis = terms_as_of(cur, program_id, start, at)
+                shares = split_by_activity(pending, start, end, [(period_start(o), period_end(o)) for o in origins],
+                                           basis and basis["program_type"])
                 for origin, share in zip(origins, shares):
+                    if share <= 0:
+                        continue
                     o_start = max(start, period_start(origin))
                     term = terms_as_of(cur, program_id, o_start, at)
                     target = program_id if term and term["window_start"] <= o_start <= term["window_end"] else \

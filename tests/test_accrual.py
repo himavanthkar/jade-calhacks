@@ -72,3 +72,12 @@ def test_activity_split_to_the_cent():
     shares = split_by_activity(Decimal("100.01"), date(2026, 3, 28), date(2026, 4, 6),
                                [(date(2026, 3, 1), date(2026, 3, 31)), (date(2026, 4, 1), date(2026, 4, 30))])
     assert shares == [Decimal("40.00"), Decimal("60.01")]          # 4 days / 6 days; the remainder lands last
+
+
+def test_an_event_fee_is_never_split_by_the_day():
+    from tpa.accrual import split_by_activity
+    origins = [(date(2026, 3, 1), date(2026, 3, 31)), (date(2026, 4, 1), date(2026, 4, 30))]
+    assert split_by_activity(Decimal("165000.00"), date(2026, 3, 26), date(2026, 4, 8), origins, "display") == \
+        [Decimal("165000.00"), Decimal("0")]
+    assert split_by_activity(Decimal("140.00"), date(2026, 3, 26), date(2026, 4, 8), origins, "scan_back") == \
+        [Decimal("60.00"), Decimal("80.00")]

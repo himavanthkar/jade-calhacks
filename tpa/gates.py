@@ -13,6 +13,7 @@ from decimal import Decimal
 
 import psycopg
 
+from tpa.accrual import PER_EVENT
 from tpa.asof import liability_outstanding, terms_as_of
 from tpa.constants import (
     HISTORY_MONTHS, Account, month_for_period, period_end, period_for_month, period_of, period_start,
@@ -146,7 +147,17 @@ def claims_inside_window(cur, period, customer_id, as_of) -> GateResult:
     )
     for entry_id, program_id, ded_id, claimed, cstart, cend, origin_end, origins in cur.fetchall():
         start, end = cstart or period_start(claimed), cend or period_end(claimed)
-        if origins > 1:
+        basis = terms_as_of(cur, program_id, start, as_of) if program_id and cstart else None
+        if basis and basis["program_type"] in PER_EVENT:
+            # An event or instalment is dated by its start, as it was accrued and cleared
+            # (accrual.claim_share): it belongs to the month it starts in, however long it runs.
+            claimed = period_of(origin_end)
+            if not period_start(claimed) <= cstart <= origin_end:
+                g.fail(entry_id=entry_id, deduction_id=ded_id, program_id=program_id, origin=claimed,
+                       reason="cleared against a month the event doesn't start in")
+                continue
+            start = end = cstart
+        elif origins > 1:
             # Allocated across origins by activity days: check only the share cleared against this one.
             claimed = period_of(origin_end)
             start, end = max(start, period_start(claimed)), min(end, origin_end)

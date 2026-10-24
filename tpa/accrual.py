@@ -110,10 +110,27 @@ def activity_share(claim_start: date | None, claim_end: date | None, start: date
     return Decimal(max(inside, 0)) / Decimal(days)
 
 
+# Paid per event or as a fund instalment, accrued whole in one month: never split by the day.
+PER_EVENT = ("display", "mdf")
+
+
+def claim_share(program_type: str | None, claim_start: date | None, claim_end: date | None,
+                start: date, end: date) -> Decimal:
+    """The part of a claim that belongs to [start, end], on the basis it was accrued on. Scan-back
+    accrues by shipped volume, so a claim splits by activity days. A display event or a fund
+    instalment is accrued whole in its month, so it clears whole against the month it starts in:
+    splitting it would eat the next event's accrual."""
+    if program_type in PER_EVENT and claim_start:
+        return Decimal("1") if start <= claim_start <= end else ZERO
+    return activity_share(claim_start, claim_end, start, end)
+
+
 def split_by_activity(amount: Decimal, claim_start: date, claim_end: date,
-                      origins: list[tuple[date, date]]) -> list[Decimal]:
-    """`amount` over consecutive origin months by activity days, to the cent. The last share takes
-    the remainder, so the shares always sum to the amount."""
+                      origins: list[tuple[date, date]], program_type: str | None = None) -> list[Decimal]:
+    """`amount` over consecutive origin months on the accrual's basis (see `claim_share`), to the
+    cent. The last share takes the remainder, so the shares always sum to the amount."""
+    if program_type in PER_EVENT:
+        return [amount if start <= claim_start <= end else ZERO for start, end in origins]
     shares, left = [], amount
     for i, (start, end) in enumerate(origins):
         share = left if i == len(origins) - 1 else money(amount * activity_share(claim_start, claim_end, start, end))

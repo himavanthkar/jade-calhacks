@@ -19,7 +19,7 @@ from decimal import Decimal
 
 import psycopg
 
-from tpa.accrual import ZERO, activity_share, fixed_fund_amount, money, nice_ceiling
+from tpa.accrual import ZERO, claim_share, fixed_fund_amount, money, nice_ceiling
 from tpa.asof import terms_as_of
 from tpa.constants import (
     HISTORY_MONTHS, Account, Control as C, month_for_period, period_end, period_for_month, period_of,
@@ -105,6 +105,7 @@ def over_claim(cur: psycopg.Cursor, program_id: str | None, origin: str, as_of: 
     if program_id is None:
         return ZERO
     start, end = period_start(origin), period_end(origin)
+    basis = terms_as_of(cur, program_id, start, as_of)
     claims = Decimal("0")
     for ded in all_rows(
             cur,
@@ -121,7 +122,7 @@ def over_claim(cur: psycopg.Cursor, program_id: str | None, origin: str, as_of: 
         rate = hits.get(C.RATE_CONFLICT)
         if rate and rate.conflict_type == "claimed_rate":
             amount -= rate.exposure
-        claims += amount * activity_share(ded["claim_start"], ded["claim_end"], start, end)
+        claims += amount * claim_share(basis and basis["program_type"], ded["claim_start"], ded["claim_end"], start, end)
     return money(claims) - estimate(cur, program_id, origin, as_of)
 
 

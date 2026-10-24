@@ -14,6 +14,7 @@ make test
 uv run python scripts/evaluate.py --as-of month-1 --as-of month-9
 make step       # run the next live month
 make year       # re-seed, run all twelve with stand-in humans, print the metrics
+make api        # the HTTP API on :8000 for the UI (frontend's Vite proxy points here)
 make players    # same, through the judgment engine with the model-played humans (TPA_USE_MODEL=1 for Claude)
 ```
 
@@ -39,6 +40,8 @@ Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `
 - `tpa/judgment.py` — the judgment engine (`judgment.hooks()`): mechanical controls go to the agent; otherwise match a precedent on (control, conflict key, customer) and apply it silently, or classify the escalation (source conflict → customer team, low confidence → controller, authority → the control's owner) and write the card. `answer(cur, escalation_id, option_id, answered_by, at, reasoning=)` is the one path a person takes: it checks who may answer, executes, writes the precedent and settles the open cards that precedent now governs. Authority decisions apply silently only up to the largest exposure decided on that key.
 - `tpa/sod.py` — segregation of duties. `can_approve(cur, actor_id, target_type, target_id)` throws `SegregationOfDutiesError` when the actor negotiated the program, or is the agent. A blocked attempt is a finding with `escalation_type='sod'`.
 - `tpa/players.py` — the model-played humans (`players.hooks()`, `scripts/step.py --players`). Each role answers its cards through `judgment.answer`; with the model on, Claude plays the role and must pick one of the card's options, otherwise it answers as last year's people did.
+- `tpa/api.py` — the HTTP surface: clock, period (with `?as_of=` for "what did it know"), step, sign, controls, precedents, escalations and answers, explain, ask, metrics. Decimals go out as strings. `TPA_HUMANS` picks who answers a step's cards.
+- `tpa/explain.py` — the interrogation box. `chain(entry_id)` walks rule → terms (clause) → inputs → knew-at (and what wasn't known yet) → approved → signed → restated, every step citing ids. `ask(question)` resolves the records a question names and answers from their chains.
 - `tpa/model.py` — the only doorway to Claude, off unless `TPA_USE_MODEL=1` and `ANTHROPIC_API_KEY` are set (`TPA_MODEL` overrides `claude-opus-5-5`). A drafted card that changes any number or record id is thrown away.
 
 ## Plugging into the engine (workstreams C and D)

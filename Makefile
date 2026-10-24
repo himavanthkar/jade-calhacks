@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: db-up db-down db-reset seed test step year players
+.PHONY: db-up db-down db-reset seed test step year players api
 
 db-up:
 	docker compose up -d db
@@ -26,3 +26,6 @@ year:
 
 players:
 	uv run python scripts/step.py --reset --through month-12 --players --metrics
+
+api:
+	uv run uvicorn tpa.api:app --reload --port 8000

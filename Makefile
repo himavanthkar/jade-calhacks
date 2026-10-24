@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: db-up db-down db-scratch db-reset seed test step year players api
+.PHONY: db-up db-down db-scratch db-reset seed test step year players says-no api
 
 # Without the compose plugin, run the same container directly.
 db-up:
@@ -34,6 +34,9 @@ year:
 
 players:
 	uv run python scripts/step.py --reset --through month-12 --players --metrics
+
+says-no:
+	uv run python scripts/step.py --reset --through month-12 --players --controller-says-no --metrics
 
 api:
 	uv run uvicorn tpa.api:app --reload --port 8000

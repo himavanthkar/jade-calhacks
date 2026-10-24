@@ -33,13 +33,16 @@ def main() -> None:
     ap.add_argument("--autopilot", action="store_true", help="stand-in humans answer escalations")
     ap.add_argument("--players", action="store_true", help="judgment engine, model-played humans answer")
     ap.add_argument("--inbox", action="store_true", help="judgment engine, cards wait for a person")
+    ap.add_argument("--controller-says-no", action="store_true",
+                    help="with --players: the controller overrules the agent on Walmart's quarter-straddling claims")
     ap.add_argument("--metrics", action="store_true", help="print precision/recall/escalation/autonomy after")
     args = ap.parse_args()
 
     if args.reset:
         subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24",
                         "--load-terms"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
-    hooks = (autopilot.hooks() if args.autopilot else players.hooks() if args.players
+    overrides = players.CONTROLLER_SAYS_NO if args.controller_says_no else None
+    hooks = (autopilot.hooks() if args.autopilot else players.hooks(overrides) if args.players
              else judgment.hooks() if args.inbox else Hooks())
     conn = connect()
     summaries = run_through(conn, args.through, hooks) if args.through else [step(conn, hooks)]

@@ -250,6 +250,8 @@ CREATE TABLE escalations (
   answer TEXT,
   answered_by TEXT REFERENCES actors(id),
   answered_at TIMESTAMP,
+  recommended TEXT,                   -- the option the agent recommends, and why
+  recommendation_basis TEXT,
   became_precedent_id TEXT,
   created_at TIMESTAMP NOT NULL
 );
@@ -264,6 +266,7 @@ CREATE TABLE precedents (
   decided_by TEXT NOT NULL REFERENCES actors(id),
   decided_at TIMESTAMP NOT NULL,
   exposure_limit NUMERIC(14,2),       -- authority decisions apply silently only up to the exposure decided on
+  overrode TEXT,                      -- the agent's recommendation this decision turned down, if it did
   from_escalation_id TEXT REFERENCES escalations(id)
 );
 

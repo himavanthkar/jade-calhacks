@@ -114,7 +114,8 @@ def now(cur) -> datetime:
 def hooks():
     mode = os.environ.get("TPA_HUMANS", "inbox")
     if mode == "players":
-        return players.hooks()
+        says_no = os.environ.get("TPA_CONTROLLER_SAYS_NO") == "1"
+        return players.hooks(players.CONTROLLER_SAYS_NO if says_no else None)
     if mode == "autopilot":
         return autopilot.hooks()
     return judgment.hooks()

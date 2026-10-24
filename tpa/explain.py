@@ -117,7 +117,9 @@ def chain(cur: psycopg.Cursor, entry_id: str) -> dict | None:
     if finding and (finding["evidence"] or {}).get("precedent_id"):
         p = one_row(cur, "SELECT * FROM precedents WHERE id = %s", (finding["evidence"]["precedent_id"],))
         if p:
-            steps.append(_step("precedent", f"{p['id']}: {p['decision']} by {p['decided_by']} — {p['reasoning']}", [p["id"]]))
+            overruled = f", overruling the agent's recommendation to {p['overrode']}" if p["overrode"] else ""
+            steps.append(_step("precedent", f"{p['id']}: {p['decision']} by {p['decided_by']}{overruled} — {p['reasoning']}",
+                               [p["id"]]))
     return {"entry_id": entry_id, "head": head, "steps": steps, "memo": line["memo"]}
 
 
@@ -184,7 +186,32 @@ def knowledge(cur: psycopg.Cursor, question: str) -> dict | None:
             "not_yet_known": [{"amendment_id": a, "effective": e, "arrived": v} for a, e, v in unknown]}
 
 
+NO = re.compile(r"\b(said no|says no|say no|overrul\w*|reject\w*|turned down|disagree\w*)\b", re.I)
+
+
+def overrulings(cur: psycopg.Cursor) -> list[dict]:
+    """Every time a person turned down the agent's recommendation, and what followed from it."""
+    rows = all_rows(cur, """SELECT p.*, (SELECT COUNT(*) FROM findings f WHERE f.evidence ->> 'precedent_id' = p.id
+                                         AND f.id <> e.finding_id) AS followed
+                            FROM precedents p JOIN escalations e ON e.id = p.from_escalation_id
+                            WHERE p.overrode IS NOT NULL ORDER BY p.decided_at, p.id""")
+    return [{"precedent_id": r["id"], "control_id": r["control_id"], "customer_id": r["customer_id"],
+             "recommended": r["overrode"], "decided": r["decision"], "decided_by": r["decided_by"],
+             "decided_at": r["decided_at"], "reasoning": r["reasoning"], "later_cases_following_it": r["followed"]}
+            for r in rows]
+
+
 def ask(cur: psycopg.Cursor, question: str) -> dict:
+    if NO.search(question):
+        said_no = overrulings(cur)
+        if said_no:
+            text = "\n".join(f"{o['decided_by']} overruled the agent on {o['control_id']} ({o['customer_id']}) on "
+                             f"{o['decided_at']:%Y-%m-%d}: recommended {o['recommended']}, decided {o['decided']}. "
+                             f"\"{o['reasoning']}\" That became {o['precedent_id']}; "
+                             f"{o['later_cases_following_it']} later case(s) followed it without asking."
+                             for o in said_no)
+            return {"question": question, "answer": text, "chains": [], "knowledge": {"overrulings": said_no},
+                    "drafted_by": "agent"}
     chains = [c for c in (chain(cur, e) for e in resolve(cur, question)) if c]
     known = knowledge(cur, question)
     if not chains and not known:

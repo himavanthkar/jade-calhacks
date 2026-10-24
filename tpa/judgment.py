@@ -27,6 +27,7 @@ from functools import partial
 import psycopg
 
 from tpa import model, restate
+from tpa.autopilot import PRECEDENT_ANSWERS
 from tpa.constants import Control as C, Prefix, period_of
 from tpa.cycle import MECHANICAL, Hooks, default_judge
 from tpa.execute import _jsonable, execute, finding, next_id, set_finding_state
@@ -80,6 +81,42 @@ DEFAULT_OPTIONS = [_o("clear", "Clear", "clear"), _o("dispute", "Dispute", "disp
 APPLY_CANDIDATES = _o("apply", "Apply the unmatched deductions named here, release the rest", "apply_candidates")
 
 
+# Where last year has no answer, what the agent recommends and why.
+WITHOUT_HISTORY = {
+    (C.RATE_CONFLICT, "terms_reading"): ("customer", "The clause is ambiguous and we drafted it, so it reads the "
+                                                     "customer's way. Tighten the wording at renewal."),
+    (C.DED_GT_ACCRUAL, RESTATEMENT): ("approve", "The amendment was signed and is in force from its effective date; "
+                                                 "the closed periods were booked on terms we now know were superseded."),
+    (C.REDEMPTION_DRIFT, None): ("acknowledge", "Real sell-through is running above projection; take it into the "
+                                                "next estimate."),
+}
+
+
+def recommend(f: dict, options: list[dict], precedent: dict | None = None) -> tuple[str, str]:
+    """(option_id, basis): what the agent would do, for a person to confirm or overrule.
+    This year's answer on the same key first, then last year's handling, then policy."""
+    by_decision = {o["decision"]: o for o in options}
+    if precedent and precedent["decision"] in by_decision:
+        return by_decision[precedent["decision"]]["id"], (
+            f"As {precedent['decided_by']} decided in {precedent['id']}: {precedent['reasoning']}")
+    if "apply_candidates" in by_decision:
+        # Rule 03: never release an accrual while a claim that may settle it sits unapplied.
+        return by_decision["apply_candidates"]["id"], ("The unmatched deduction is this accrual's claim: same customer, "
+                                                       "same period, close to the instalment.")
+    prior = PRECEDENT_ANSWERS.get((f["control_id"], f["conflict_type"])) or PRECEDENT_ANSWERS.get((f["control_id"], None))
+    if prior and prior[1] in by_decision:
+        taught = ((f["evidence"] or {}).get("control") or {}).get("precedent_ids", [])
+        cited = ", ".join(taught[:3]) + ("…" if len(taught) > 3 else "")
+        option = by_decision[prior[1]]
+        return option["id"], (f"Last year {len(taught)} cases{f' ({cited})' if cited else ''} were resolved this way: "
+                              f"{option['label'].lower()}.")
+    choice = WITHOUT_HISTORY.get((f["control_id"], f["conflict_type"])) or WITHOUT_HISTORY.get((f["control_id"], None))
+    if choice and any(o["id"] == choice[0] for o in options):
+        return choice
+    hold = by_decision.get("hold") or options[-1]
+    return hold["id"], "Not enough to decide on; I'd hold for more evidence."
+
+
 def options_for(f: dict) -> list[dict]:
     options = OPTIONS.get((f["control_id"], f["conflict_type"])) or OPTIONS.get((f["control_id"], None)) \
         or DEFAULT_OPTIONS
@@ -121,14 +158,14 @@ def covers(precedent: dict, f: dict) -> bool:
 
 
 def write_precedent(cur: psycopg.Cursor, f: dict, decision: str, reasoning: str, decided_by: str, at: datetime,
-                    escalation_id: str | None) -> str:
+                    escalation_id: str | None, overrode: str | None = None) -> str:
     pid = next_id(cur, "precedents", Prefix.PRECEDENT)
     cur.execute(
         """INSERT INTO precedents (id, control_id, conflict_type, customer_id, decision, reasoning, decided_by,
-                                   decided_at, exposure_limit, from_escalation_id)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                                   decided_at, exposure_limit, overrode, from_escalation_id)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (pid, f["control_id"], conflict_key(f), f["customer_id"], decision, reasoning, decided_by, at,
-         f["exposure"] if decision in AUTHORITY_DECISIONS else None, escalation_id),
+         f["exposure"] if decision in AUTHORITY_DECISIONS else None, overrode, escalation_id),
     )
     return pid
 
@@ -200,15 +237,20 @@ def draft_question(f: dict, kind: str) -> str:
 
 
 def escalate(cur: psycopg.Cursor, f: dict, at: datetime, *, to_role: str | None = None,
-             prefix: str = "") -> dict:
+             prefix: str = "", precedent: dict | None = None) -> dict:
     kind, role = classify(f)
     role = to_role or role
     eid = next_id(cur, "escalations", Prefix.ESCALATION)
     options = [o for o in options_for(f) if not (o["decision"] == "escalate" and role == "controller")]
+    rec, basis = recommend(f, options, precedent)
+    options = [{**o, "recommended": o["id"] == rec} for o in options]
+    label = next(o["label"] for o in options if o["id"] == rec)
+    question = f"{(prefix + draft_question(f, kind)).strip()} I'd recommend: {label.lower()}. {basis}"
     cur.execute(
-        """INSERT INTO escalations (id, finding_id, to_role, question, options, created_at)
-           VALUES (%s, %s, %s, %s, %s, %s)""",
-        (eid, f["id"], role, (prefix + draft_question(f, kind)).strip(), json.dumps(options), at),
+        """INSERT INTO escalations (id, finding_id, to_role, question, options, recommended, recommendation_basis,
+                                    created_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+        (eid, f["id"], role, question, json.dumps(options), rec, basis, at),
     )
     cur.execute("UPDATE findings SET state = 'escalated', escalation_type = %s WHERE id = %s", (kind, f["id"]))
     return escalation(cur, eid)
@@ -242,7 +284,7 @@ def judge(cur: psycopg.Cursor, f: dict, at: datetime, *, respond: Respond | None
         return
     prefix = (f"Precedent {p['id']} ({p['decision']}) covers up to ${p['standing_limit']:,}; "
               f"this one is ${f['exposure']:,}. ") if p else ""
-    esc = escalate(cur, f, at, prefix=prefix)
+    esc = escalate(cur, f, at, prefix=prefix, precedent=p)
     if respond:
         respond(cur, esc, at)
 
@@ -270,6 +312,11 @@ def answer(cur: psycopg.Cursor, escalation_id: str, option_id: str, answered_by:
         raise ValueError(f"{option_id!r} is not an option on {escalation_id}")
     if not reasoning.strip():
         raise ValueError("an answer carries its reasoning; it becomes the precedent")
+    overrode = esc["recommended"] if esc["recommended"] and option_id != esc["recommended"] else None
+    if overrode and reasoning.strip() == option["label"]:
+        rec = next(o["label"] for o in esc["options"] if o["id"] == overrode)
+        raise ValueError(f"Overruling the recommendation ({rec.lower()}) needs your reasoning: "
+                         f"it becomes the precedent the next case follows")
     who = actor(cur, answered_by)
     if who["role"] != esc["to_role"] and who["role"] != "controller":
         raise PermissionError(f"{who['name']} cannot answer a card addressed to the {esc['to_role']}")
@@ -284,7 +331,7 @@ def answer(cur: psycopg.Cursor, escalation_id: str, option_id: str, answered_by:
 
     decision = option["decision"]
     result = {"escalation_id": escalation_id, "finding_id": f["id"], "decision": decision, "journals": [],
-              "precedent_id": None, "settled": [], "escalated_to": None}
+              "precedent_id": None, "settled": [], "escalated_to": None, "overrode": overrode}
     if decision == "escalate":
         _close(cur, escalation_id, option_id, answered_by, at, None)
         cur.execute("UPDATE findings SET state = 'open' WHERE id = %s", (f["id"],))
@@ -297,7 +344,7 @@ def answer(cur: psycopg.Cursor, escalation_id: str, option_id: str, answered_by:
         return result
 
     result["journals"] = decide(cur, f, decision, answered_by, at, note=reasoning)
-    pid = write_precedent(cur, f, decision, reasoning.strip(), answered_by, at, escalation_id)
+    pid = write_precedent(cur, f, decision, reasoning.strip(), answered_by, at, escalation_id, overrode)
     _close(cur, escalation_id, option_id, answered_by, at, pid)
     _note(cur, f["id"], precedent_id=pid)
     result["precedent_id"] = pid

@@ -11,11 +11,12 @@ the way last year's people did, citing the prior-year decisions that taught the 
 
 import json
 from datetime import datetime
+from functools import partial
 
 import psycopg
 
 from tpa import judgment, model
-from tpa.autopilot import ACTOR_FOR_ROLE, CUSTOMER_TEAM, PRECEDENT_ANSWERS
+from tpa.autopilot import ACTOR_FOR_ROLE, CUSTOMER_TEAM
 from tpa.constants import Control as C
 from tpa.cycle import Hooks
 from tpa.execute import _jsonable, finding
@@ -33,15 +34,12 @@ PERSONAS = {
                       "evidence does not support.",
 }
 
-# Where last year has no answer, what the role does and why.
-NO_PRECEDENT = {
-    (C.RATE_CONFLICT, "terms_reading"): ("customer", "The clause is ambiguous and we drafted it, so it reads "
-                                                     "the customer's way. Tighten the wording at renewal."),
-    (C.DED_GT_ACCRUAL, judgment.RESTATEMENT): ("approve", "The amendment was signed and is in force from its "
-                                                          "effective date; the closed periods were booked on "
-                                                          "terms we now know were superseded."),
-    (C.REDEMPTION_DRIFT, None): ("acknowledge", "Real sell-through is running above projection; take it into "
-                                                "the next estimate."),
+# The demo's controller says no. Last year straddling claims were allocated across the quarter
+# end by activity days, so that is what the agent recommends; this year's controller won't have it.
+CONTROLLER_SAYS_NO = {
+    (C.PERIOD_STRADDLE, "WMT"): ("dispute", "No. Allocating across a quarter end moves expense between two reported "
+                                            "quarters on our own estimate of activity days. Dispute it and have Walmart "
+                                            "split the claim at the quarter end, so each part clears in its own quarter."),
 }
 
 
@@ -50,26 +48,8 @@ def actor_for(role: str, customer_id: str) -> str:
 
 
 def standin(f: dict, esc: dict) -> tuple[str, str]:
-    """(option_id, reasoning) as last year's people would have answered."""
-    options = esc["options"]
-    key = (f["control_id"], f["conflict_type"])
-    if any(o["decision"] == "apply_candidates" for o in options):
-        # Rule 03: never release an accrual while a claim that may settle it sits unapplied.
-        return "apply", ("The unmatched deduction is this accrual's claim: same customer, same period, close to "
-                         "the instalment. Apply it and release only the residual.")
-    prior = PRECEDENT_ANSWERS.get(key) or PRECEDENT_ANSWERS.get((f["control_id"], None))
-    if prior:
-        option = next((o for o in options if o["decision"] == prior[1]), None)
-        if option:
-            taught = ((f["evidence"] or {}).get("control") or {}).get("precedent_ids", [])
-            cited = ", ".join(taught[:3]) + ("…" if len(taught) > 3 else "")
-            return option["id"], (f"As last year: {len(taught)} prior cases{f' ({cited})' if cited else ''} were "
-                                  f"resolved this way — {option['label'].lower()}.")
-    choice = NO_PRECEDENT.get(key) or NO_PRECEDENT.get((f["control_id"], None))
-    if choice and any(o["id"] == choice[0] for o in options):
-        return choice
-    hold = next(o for o in options if o["decision"] == "hold")
-    return hold["id"], "Not enough to decide on; holding for more evidence."
+    """(option_id, reasoning): the role takes the agent's recommendation, as last year's people would have."""
+    return esc["recommended"], esc["recommendation_basis"]
 
 
 def played(f: dict, esc: dict, persona: str) -> tuple[str, str] | None:
@@ -86,8 +66,12 @@ def played(f: dict, esc: dict, persona: str) -> tuple[str, str] | None:
     return reply["option_id"], str(reply["reasoning"]).strip()
 
 
-def respond(cur: psycopg.Cursor, esc: dict, at: datetime) -> dict | None:
+def respond(cur: psycopg.Cursor, esc: dict, at: datetime, overrides: dict | None = None) -> dict | None:
     f = finding(cur, esc["finding_id"])
+    scripted = (overrides or {}).get((f["control_id"], f["customer_id"]))
+    if scripted and any(o["id"] == scripted[0] for o in esc["options"]):
+        return judgment.answer(cur, esc["id"], scripted[0], actor_for(esc["to_role"], f["customer_id"]), at,
+                               reasoning=scripted[1])
     cur.execute("SELECT name FROM customers WHERE id = %s", (f["customer_id"],))
     persona = PERSONAS.get(esc["to_role"], PERSONAS["controller"]).format(customer=cur.fetchone()[0])
     option_id, reasoning = played(f, esc, persona) or standin(f, esc)
@@ -105,7 +89,9 @@ def sign(cur: psycopg.Cursor, period: str, customer_id: str, at: datetime) -> st
     return ACTOR_FOR_ROLE["close_reviewer"]
 
 
-def hooks() -> Hooks:
-    h = judgment.hooks(respond=respond)
+def hooks(overrides: dict | None = None) -> Hooks:
+    """`overrides`: {(control_id, customer_id): (option_id, reasoning)} answers that overrule the
+    recommendation, e.g. CONTROLLER_SAYS_NO."""
+    h = judgment.hooks(respond=partial(respond, overrides=overrides) if overrides else respond)
     h.sign = sign
     return h

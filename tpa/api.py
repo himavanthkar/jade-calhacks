@@ -1,7 +1,7 @@
 """The HTTP surface the UI reads (workstream D's contract in spec.md, as frontend/src/api expects it).
 
     GET  /api/clock                    → where the simulation is
-    GET  /api/period/{period}          → { state, customers[], postings[], findings[], gates{}, flux[] }
+    GET  /api/period/{period}          → { state, customers[], postings[], findings[], gates{}, flux[], analytical_review }
     POST /api/period/{period}/step     → run that period (must be the one the clock points at)
     POST /api/period/{period}/sign     → { customer_id, signed_by } a named reviewer signs a clean period
     GET  /api/period/{period}/package  → the sign-off package (?as_of=), per customer
@@ -144,6 +144,8 @@ def get_period(period: str = P(..., pattern=PERIOD), as_of: str | None = None, c
                             (period, known))
         flux = all_rows(cur, "SELECT * FROM flux_commentary WHERE period = %s AND decision_time <= %s ORDER BY id",
                         (period, known))
+        review = one_row(cur, "SELECT * FROM analytical_reviews WHERE period = %s AND decision_time <= %s",
+                         (period, known))
     gates: dict = {}
     for c in customers:
         for name, g in (c["gate_results"] or {}).items():
@@ -153,7 +155,7 @@ def get_period(period: str = P(..., pattern=PERIOD), as_of: str | None = None, c
             merged["violations"] += [{**v, "customer_id": c["customer_id"]} for v in g.get("violations", [])]
     state = min((c["state"] for c in customers), key=STATE_ORDER.index)
     return out({"period": period, "state": state, "customers": customers, "postings": postings, "findings": findings,
-                "gates": gates, "flux": flux})
+                "gates": gates, "flux": flux, "analytical_review": review})
 
 
 @app.post("/api/period/{period}/step")

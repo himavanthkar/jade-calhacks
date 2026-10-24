@@ -319,6 +319,26 @@ CREATE INDEX ledger_asof_idx ON ledger_entries (period, decision_time);
 CREATE INDEX ledger_program_idx ON ledger_entries (program_id, period);
 CREATE INDEX ledger_journal_idx ON ledger_entries (journal_id);
 
+-- The close's analytical review: the period's total trade promotion liability against an
+-- expectation from public filings (the latest 10-K at the time). Judgment, not a gate: outside
+-- the range it needs the reviewer's explanation before signing. One per period.
+CREATE TABLE analytical_reviews (
+  id TEXT PRIMARY KEY,                -- 'AR-2026-08'
+  period TEXT NOT NULL UNIQUE,
+  measure TEXT NOT NULL,
+  liability NUMERIC(16,2) NOT NULL,
+  net_sales_annualized NUMERIC(16,2) NOT NULL,
+  ratio NUMERIC(12,8) NOT NULL,
+  expectation NUMERIC(12,8),          -- NULL when no filing was public yet
+  low NUMERIC(12,8),
+  high NUMERIC(12,8),
+  within_range BOOLEAN,
+  source JSONB NOT NULL DEFAULT '{}', -- the filing: fiscal year, accession, url, the quoted sentence
+  drivers JSONB NOT NULL DEFAULT '[]',
+  narrative TEXT NOT NULL,
+  decision_time TIMESTAMP NOT NULL
+);
+
 CREATE TABLE flux_commentary (
   id TEXT PRIMARY KEY,
   period TEXT NOT NULL,

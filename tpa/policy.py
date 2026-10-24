@@ -34,3 +34,10 @@ STRADDLE_CONFIDENCE = Decimal("0.5")
 TERMS_READING_CONFIDENCE = Decimal("0.4")
 # Below this the judgment engine escalates as low confidence: it cannot verify from the agreement.
 LOW_CONFIDENCE = Decimal("0.6")
+
+# Company policy, not GAAP. The close's analytical review compares accrued trade promotion
+# liability as a share of annualized net sales with General Mills' reported ratio (its latest
+# 10-K at the time). A ratio more than this far off, either way, needs the reviewer's
+# explanation before signing. Set before looking at the simulation: the analytical-review
+# convention that a difference above half the expectation is never explained away as noise.
+ANALYTICAL_REVIEW_TOLERANCE = Decimal("0.5")

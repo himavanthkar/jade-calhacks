@@ -2,7 +2,7 @@
 
 Read-only. Per customer: the period's postings and balances, every finding with its escalation and
 answer, the verifiability gates re-run as of that moment (not the stored results, so the package
-for March reads what March knew), the flux commentary, and the reconciliation identity for each
+for March reads what March knew), the flux commentary, the analytical review (tpa.review), and the reconciliation identity for each
 program's accrual originating in the period:
 
     ending = opening + accruals + estimate adjustments − settled claims
@@ -73,5 +73,8 @@ def customer_package(cur: psycopg.Cursor, period: str, as_of: datetime, customer
 def package(cur: psycopg.Cursor, period: str, as_of: datetime) -> dict:
     flux = all_rows(cur, "SELECT * FROM flux_commentary WHERE period = %s AND decision_time <= %s ORDER BY id",
                     (period, as_of))
-    return {"period": period, "as_of": as_of, "flux": flux,
+    review = one_row(cur, "SELECT * FROM analytical_reviews WHERE period = %s AND decision_time <= %s", (period, as_of))
+    return {"period": period, "as_of": as_of, "flux": flux, "analytical_review": review,
+            # Outside the range the reviewer explains the difference before signing.
+            "needs_explanation": bool(review and review["within_range"] is False),
             "customers": [customer_package(cur, period, as_of, c) for c in CUSTOMERS]}

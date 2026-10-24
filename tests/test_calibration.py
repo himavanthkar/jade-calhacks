@@ -22,6 +22,7 @@ def test_cited_figures_match_the_filings():
         assert got["walmart_share_of_net_sales_pct"]["value"] == f.walmart_share_of_net_sales_pct
         assert got["walmart_share_of_na_retail_pct"]["value"] == f.walmart_share_of_na_retail_pct
         assert got["accrued_trade_and_coupon_liabilities_musd"]["value"] == f.accrued_trade_and_coupon_musd
+        assert got["filed"] == f.filed
     latest = filings[cal.FY2026.accession]
     assert latest["walmart_share_of_net_sales_pct"]["quote"] == cal.QUOTES["walmart"]
     assert latest["accrued_trade_and_coupon_liabilities_musd"]["quote"] == cal.QUOTES["accrued_trade"]

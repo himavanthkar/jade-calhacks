@@ -13,7 +13,7 @@ order the business would see them, and the period closes on its last day:
              15:00  scripted human actions, handed to `hooks.on_event`
   close      18:00  revenue; accruals (spec steps 1–5); clearing deferred to the accrual
              20:00  gates; sign-off of every customer-period with nothing left open
-             21:00  flux commentary for accounts over materiality
+             21:00  flux commentary for accounts over materiality; the analytical review
 
 Judgment is workstream C's (`tpa.judgment`). It plugs in through `Hooks`. Alone, the engine
 decides only what a mined control lets the agent decide (mechanical disputes and re-estimates);
@@ -41,6 +41,7 @@ from tpa.execute import (
     segments_memo,
 )
 from tpa.flux import write_flux
+from tpa.review import write_review
 from tpa.gates import GateFailure, no_stale_accruals, run_gates, sign_period
 from tpa.ledger import Line, post_journal
 from tpa.onboarding import ensure_onboarded, learn_control
@@ -351,6 +352,7 @@ def close(run: Run) -> dict:
                              "AND signed_at IS NULL ORDER BY period, customer_id", (period,)):
         try_sign(run, row["period"], row["customer_id"], at(end, SIGN_AT))
     write_flux(cur, period, at(end, FLUX_AT))
+    write_review(cur, period, at(end, FLUX_AT))
     return states
 
 

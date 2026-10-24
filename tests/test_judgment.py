@@ -203,3 +203,14 @@ def test_an_unmatched_instalment_is_applied_before_the_accrual_is_released(year)
                                    WHERE entry_type = 'adjustment' AND account = '2300 Accrued trade promotion liability'
                                      AND program_id = 'TP-0222' AND valid_time = '2026-01-31'""")["released"]
     assert released == Decimal("1603.53")
+
+
+def test_the_simulated_liability_sits_in_general_mills_range_all_year(year):
+    _, conn = year
+    with conn.cursor() as cur:
+        rows = all_rows(cur, "SELECT * FROM analytical_reviews ORDER BY period")
+    assert len(rows) == 12 and all(r["within_range"] for r in rows)
+    assert [r["source"]["fiscal_year"] for r in rows] == [2025] * 6 + [2026] * 6       # FY2026 10-K filed 2026-07-01
+    august = next(r for r in rows if r["period"] == "2026-08")
+    assert [d["kind"] for d in august["drivers"]] == ["restatement"] * 6
+    assert sum(Decimal(str(d["amount"])) for d in august["drivers"]) == Decimal("1391636.52")

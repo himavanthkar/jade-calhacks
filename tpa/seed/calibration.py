@@ -19,6 +19,7 @@ CIK = "0000040704"
 class Filing:
     fiscal_year: int
     period_end: str
+    filed: str                             # the day the filing became public: the earliest it can be used
     accession: str
     url: str
     net_sales_musd: D                      # XBRL us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax
@@ -28,10 +29,10 @@ class Filing:
     accrued_trade_and_coupon_musd: int     # Critical accounting estimates, revenue recognition
 
 
-FY2026 = Filing(2026, "2026-05-31", "0001628280-26-046466",
+FY2026 = Filing(2026, "2026-05-31", "2026-07-01", "0001628280-26-046466",
                 "https://www.sec.gov/Archives/edgar/data/40704/000162828026046466/gis-20260531.htm",
                 D("18424.6"), D("10571.8"), 22, 31, 493)
-FY2025 = Filing(2025, "2025-05-25", "0001193125-25-147079",
+FY2025 = Filing(2025, "2025-05-25", "2025-06-26", "0001193125-25-147079",
                 "https://www.sec.gov/Archives/edgar/data/40704/000119312525147079/d938443d10k.htm",
                 D("19486.6"), D("11907.0"), 22, 31, 470)
 
@@ -45,6 +46,20 @@ QUOTES = {
               "levels for offered programs at the time of sale. Differences between the estimated and actual reduction "
               "to the transaction price are recognized as a change in estimate in a subsequent period.",
 }
+
+
+FILINGS = (FY2025, FY2026)
+
+
+def latest_filing(on: str) -> Filing | None:
+    """The newest 10-K public on `on` (ISO date): a close can only compare with what was published."""
+    known = [f for f in FILINGS if f.filed <= on]
+    return max(known, key=lambda f: f.filed) if known else None
+
+
+def trade_liability_ratio(f: Filing) -> D:
+    """Accrued trade and coupon promotion liabilities as a share of net sales."""
+    return D(f.accrued_trade_and_coupon_musd) / f.net_sales_musd
 
 
 def scale(sim_walmart_gross_usd: D, catch_up_usd: D, sim_trade_liability_usd: D, f: Filing = FY2026) -> dict:

@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan: PART-B-CL Merge Readiness</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --ink: #1d2320;
+    --muted: #5d6762;
+    --rule: #d9dcd6;
+    --accent: #1f6b4f;        /* ledger green: debits = credits */
+    --accent-soft: #e3efe9;
+    --warn: #a35a12;
+    --warn-soft: #f6ead9;
+    --danger: #9b2c2c;
+    --danger-soft: #f5e1e1;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141816; --surface: #1b201d; --ink: #e6e9e6; --muted: #9aa49f; --rule: #2d3430;
+      --accent: #5fbf97; --accent-soft: #1f3129; --warn: #e0a15c; --warn-soft: #34291c;
+      --danger: #e07a7a; --danger-soft: #3a2222;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans); }
+  main { max-width: 920px; margin: 0 auto; padding: 40px 16px 96px; }
+  h1 { font-size: 2rem; letter-spacing: -0.01em; margin: 0 0 12px; }
+  h2 { font-size: 1.35rem; margin: 48px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+  h4 { font-size: 1rem; margin: 20px 0 6px; color: var(--ink); }
+  p, li { color: var(--ink); }
+  code { font: 0.88em var(--mono); background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font: 13px/1.5 var(--mono); }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.93rem; background: var(--surface); }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  figure { margin: 24px auto; text-align: center; }
+  figure img { max-width: 100%; border-radius: 10px; border: 1px solid var(--rule); }
+  figcaption { color: var(--muted); font-size: 0.88rem; margin-top: 6px; }
+  details { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details.meta dl { display: grid; grid-template-columns: 120px 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 0.9rem; }
+  details.meta dt { color: var(--muted); }
+  details.meta dd { margin: 0; font-family: var(--mono); font-size: 0.85rem; word-break: break-all; }
+  .qa-answer { color: var(--ink); margin: 8px 0 2px; }
+  .tag { display: inline-block; font: 600 0.72rem var(--mono); padding: 1px 6px; border-radius: 4px; text-transform: uppercase; }
+  .tag.existing { background: var(--accent-soft); color: var(--accent); }
+  .tag.new { background: var(--warn-soft); color: var(--warn); }
+  .files ul { list-style: none; padding-left: 0; }
+  .files li { margin: 6px 0; }
+  .phase { background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--accent); border-radius: 8px; padding: 4px 20px 16px; margin: 20px 0; }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { margin: 6px 0; padding-left: 2px; }
+  code.status { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+  .loop { background: var(--accent-soft); border-radius: 6px; padding: 10px 14px; margin-top: 12px; font-size: 0.93rem; }
+  .callout { border-radius: 8px; padding: 12px 16px; margin: 14px 0; }
+  .callout.warn { background: var(--warn-soft); }
+  .callout.danger { background: var(--danger-soft); }
+  .callout.ok { background: var(--accent-soft); }
+  .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+  .kpi div { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; }
+  .kpi b { display: block; font-size: 1.3rem; font-family: var(--mono); }
+  .kpi span { color: var(--muted); font-size: 0.82rem; }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- ===== HEADER + UPDATABLE METADATA ===== -->
+  <header>
+    <h1>Plan: PART-B-CL Merge Readiness</h1>
+    <details class="meta">
+      <summary>Metadata</summary>
+      <dl>
+        <dt>created</dt>      <dd>2026-10-24T03:10:00-07:00</dd>
+        <dt>modified</dt>     <dd>2026-10-24T03:10:00-07:00</dd>
+        <dt>commits</dt>      <dd>8698046 (main base), 21fa0e0 (origin/PART-B-CL head)</dd>
+        <dt>agent name</dt>        <dd>Claude Code (claude-opus-5-5)</dd>
+        <dt>session id</dt>      <dd>session_01X1tkpcLsNuoxVsPsGDoTuQ</dd>
+        <dt>back refs</dt>    <dd>spec.md (final_spec, 2026-10-23), origin/PART-B-CL@21fa0e0, AGENTS.md, .claude/rules/01-gaap-foundation.md, .claude/rules/02-deduction-system-rules.md, .claude/rules/03-reconciliation-and-controls.md</dd>
+        <dt>forward refs</dt> <dd>none yet</dd>
+      </dl>
+    </details>
+  </header>
+
+  <!-- Hero image — synced to the :root visual identity. Replace with <img> once generated. -->
+  <figure>
+    <!-- {{HERO_IMAGE: one feature branch merging into main through a short row of green check gates — "B engine → main", minimal ledger-green on off-white}} -->
+    <figcaption>Workstream B's monthly engine, made safe to merge into main.</figcaption>
+  </figure>
+
+  <!-- ===== PURPOSE / PROBLEM / SOLUTION ===== -->
+  <section id="purpose">
+    <h2>Purpose</h2>
+    <p>Get <code>origin/PART-B-CL</code> (one commit, <code>21fa0e0</code>, about 2.3k lines: the period state machine, onboarding replay and control mining, restatement, execution, flux and the autopilot) ready to merge into <code>main</code>. That means: the local environment is reproducible, the branch obeys the binding accounting rules in <code>.claude/rules/</code> and <code>AGENTS.md</code>, the debt the commit message admits to is paid down, and the hand-offs to workstreams A (gates), C (judgment and SoD) and D (surface) are clean. It does <em>not</em> mean building C's or D's work. Where a never-cut spec item sits on the B/C boundary, the plan does the smallest B-side piece and flags it.</p>
+  </section>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>The branch is green: 61 tests pass, and the live year runs end to end in about 3 seconds against a scratch DB. But it isn't merge-ready, for these reasons (all verified in this session):</p>
+    <div class="kpi">
+      <div><b>61 / 61</b><span>tests pass on the branch</span></div>
+      <div><b>98.3% / 94.6%</b><span>precision / recall at month 9</span></div>
+      <div><b>0.0%</b><span>escalation rate at month 1 <em>and</em> month 9</span></div>
+      <div><b>2 missed</b><span>E-48, E-50: sales-lead self-approval</span></div>
+      <div><b>2 FP</b><span>FN-0024, FN-0067: STALE-ACCRUAL</span></div>
+    </div>
+    <ol>
+      <li><strong>Approvals with no approver.</strong> <code>Hooks()</code> defaults <code>approve → "controller"</code> and <code>sign → "close_reviewer"</code> (<code>tpa/cycle.py</code>, <code>controller_approves</code> / <code>reviewer_signs_clean</code>). Running the engine alone writes controller approvals and close sign-offs that no human made. That breaks rule 12 (traceable approvals) and the spec's line "it never approves anything".</li>
+      <li><strong>A change to A's gate file with no review.</strong> <code>tpa/gates.py</code> changes the stale-accrual gate (a disputed deduction now counts as arrived) and the window gate (allocated straddles are checked per share). <code>AGENTS.md</code>: "Don't weaken a gate to make a test pass." Neither change has a test proving the gate still blocks what it should.</li>
+      <li><strong>Thresholds tuned against the answer key.</strong> The commit says so. <code>VARIANCE_NOISE_FLOOR_PCT</code>, <code>DRIFT_TOLERANCE_PCT</code> and <code>MATERIALITY_RATE</code> are bare literals with no policy provenance (rule 6: thresholds come from company policy and are never presented as GAAP).</li>
+      <li><strong>Duplicated logic</strong> for program lookup, the activity-day split of straddling claims (<code>onboarding.activity_share</code> vs the <code>allocate</code> decision in <code>execute.py</code>) and the scan-back estimate (<code>onboarding.estimate</code> vs <code>execute.scan_back_estimate</code>). If replay and live disagree, the mined controls stop describing the live system.</li>
+      <li><strong>Never-cut items unmet on the B side.</strong> The SoD throw is a no-op (<code>on_event = ignore_event</code>), so E-48 and E-50 are missed. The autopilot resolves every finding without writing <code>escalations</code> or <code>precedents</code>, so the escalation-rate number, the spec's self-improvement proof, is flat at 0%.</li>
+      <li><strong>The environment isn't reproducible.</strong> <code>.env</code> is empty (0 bytes) and <em>not</em> in <code>.gitignore</code>. Nothing loads it. <code>make db-up</code> fails on this machine because the <code>docker compose</code> plugin is missing (colima is running Docker 29.x). The new <code>spec.md</code>, <code>AGENTS.md</code>, <code>CLAUDE.md</code> and <code>.claude/rules/</code> are uncommitted on <code>main</code>.</li>
+    </ol>
+    <figure>
+      <!-- {{PROBLEM_IMAGE: a green test badge sitting over three hidden cracks — "auto-approved", "untested gate", "tuned threshold"}} -->
+      <figcaption>Green tests, but the engine signs its own close.</figcaption>
+    </figure>
+  </section>
+
+  <section id="solution">
+    <h2>Solution</h2>
+    <p>Eight short phases. Each ends on <code>make test</code> plus <code>make year</code> plus the evaluator, run against a scratch DB, so every phase is commit-on-green. Order:</p>
+    <ol>
+      <li>Make the environment reproducible.</li>
+      <li>Stop the engine approving anything on its own.</li>
+      <li>Split out and prove the gate change, then get A's sign-off.</li>
+      <li>Move every threshold into one company-policy module with provenance.</li>
+      <li>Dedupe the replay and live math.</li>
+      <li>Wire the minimal SoD throw and an escalation/precedent record, so E-48 and E-50 are caught and the escalation rate falls.</li>
+      <li>Root-cause the two stale false positives.</li>
+      <li>Rebase, verify the moment to the cent, and open the PR.</li>
+    </ol>
+    <p>An optional ninth phase adds the period sign-off package and a CSV export ("verifiable through Excel"), which D needs.</p>
+    <figure>
+      <!-- {{SOLUTION_IMAGE: eight small numbered tiles in a row leading into one merged main line, each tile a check mark}} -->
+      <figcaption>Eight phases, each ending green, each a commit.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== RELEVANT FILES ===== -->
+  <section id="files" class="files">
+    <h2>Relevant Files</h2>
+
+    <h3>Existing Files</h3>
+    <ul>
+      <li><span class="tag existing">existing</span> <code>.env</code> — empty. Gets <code>DATABASE_URL</code>, <code>TEST_DATABASE_URL</code>, <code>ANTHROPIC_API_KEY</code>, and optionally <code>OPENAI_API_KEY</code> (plan images only) and Moss credentials.</li>
+      <li><span class="tag existing">existing</span> <code>.gitignore</code> — must add <code>.env</code> before any key goes in it.</li>
+      <li><span class="tag existing">existing</span> <code>Makefile</code> — load <code>.env</code>; add a <code>test</code> target that refuses to run against the dev DB; add a compose fallback.</li>
+      <li><span class="tag existing">existing</span> <code>docker-compose.yml</code> — unchanged. The Makefile falls back to <code>docker run</code> with the same image, credentials, port and volume.</li>
+      <li><span class="tag existing">existing</span> <code>spec.md</code>, <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>.claude/</code> — uncommitted on main. Commit them before rebasing B.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/cycle.py</code> (branch) — <code>Hooks</code> defaults, <code>try_sign</code>, <code>ignore_event</code>, <code>MECHANICAL</code>.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/restate.py</code> (branch) — <code>on_amendment(..., approve)</code> and <code>apply</code>: restatement must wait for a named approver.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/autopilot.py</code> (branch) — stand-in humans. They become the <em>only</em> source of approvals and sign-offs, and they write escalation and precedent rows.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/gates.py</code> — A's file. Two changed gates need tests and A's review. Never weaken them.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/controls.py</code>, <code>tpa/onboarding.py</code>, <code>tpa/execute.py</code>, <code>tpa/flux.py</code>, <code>tpa/accrual.py</code> (branch) — threshold literals and duplicated math.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/evaluate.py</code> — escalation rate = findings with an <code>escalations</code> row; SoD = finding with <code>escalation_type='sod'</code>. Read-only here.</li>
+      <li><span class="tag existing">existing</span> <code>db/schema.sql</code> — <code>scripted_events</code>, <code>findings</code>, <code>escalations</code> and <code>precedents</code> already exist. No DDL change is planned.</li>
+      <li><span class="tag existing">existing</span> <code>tests/test_engine.py</code> (branch) — fixtures <code>engine_alone</code> (<code>Hooks()</code>) and <code>with_standins</code> (<code>autopilot.hooks()</code>). <code>engine_alone</code> expectations change in Phase 2.</li>
+      <li><span class="tag existing">existing</span> <code>README.md</code> (branch) — hook table and env setup to update.</li>
+    </ul>
+
+    <h3>New Files</h3>
+    <ul>
+      <li><span class="tag new">new</span> <code>.env.example</code> — documents every variable with safe defaults, no secrets.</li>
+      <li><span class="tag new">new</span> <code>tpa/policy.py</code> — every automation threshold and tolerance in one place, each with a docstring stating it is company policy (not GAAP) and how it was derived.</li>
+      <li><span class="tag new">new</span> <code>tpa/capability.py</code> — <code>SegregationOfDutiesError</code> and <code>can_approve(cur, actor_id, target)</code>, the minimal capability check C will extend.</li>
+      <li><span class="tag new">new</span> <code>tests/test_hooks.py</code> — with default hooks nothing is approved or signed; stand-ins approve with named actors.</li>
+      <li><span class="tag new">new</span> <code>tests/test_gates_b.py</code> — proves the two gate edits still block a truly stale accrual and an out-of-window share.</li>
+      <li><span class="tag new">new</span> <code>tests/test_sod.py</code> — the sales lead's approval throws and becomes an <code>sod</code> finding; E-48 and E-50 are caught.</li>
+      <li><span class="tag new">new</span> <code>tpa/package.py</code>, <code>scripts/export.py</code> — <em>optional Phase 9</em>: the sign-off package and CSV export.</li>
+    </ul>
+  </section>
+
+  <!-- ===== IMPLEMENTATION PHASES ===== -->
+  <section id="phases">
+    <h2>Implementation Phases</h2>
+    <p><strong>IMPORTANT:</strong> Execute every phase and task step by step, in order, top to bottom.</p>
+    <p>Status markers: <code>[]</code> idle · <code>[wip]</code> in progress · <code>[x]</code> complete · <code>[f]</code> failed. All start as <code>[]</code>; the Build Plan workflow updates them as it works.</p>
+    <div class="callout warn"><strong>Every test command in this plan uses the scratch DB.</strong> Tests reset the schema. Use <code>DATABASE_URL=postgresql://tpa:tpa@localhost:5433/tpa_scratch</code> (already created in this session) and never the default <code>tpa</code> DB, which holds demo data.</div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 0: Environment and workspace</h3>
+      <p>Make any machine able to stand the repo up in three commands, keep secrets out of git, and land the uncommitted rules and spec on main so B rebases onto the rules it is judged against.</p>
+      <figure>
+        <!-- {{PHASE_IMAGE: a locked .env file beside a database cylinder labelled 5433}} -->
+        <figcaption>Secrets stay local; Postgres comes up with or without the compose plugin.</figcaption>
+      </figure>
+
+      <h4>0.1. Secure and document <code>.env</code></h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Append <code>.env</code> to <code>.gitignore</code>. Confirm with <code>git check-ignore .env</code>.</li>
+        <li><code class="status">[]</code> Create <code>.env.example</code> (committed):
+<pre><code>DATABASE_URL=postgresql://tpa:tpa@localhost:5433/tpa              # demo / dev
+TEST_DATABASE_URL=postgresql://tpa:tpa@localhost:5433/tpa_scratch  # tests reset this one
+ANTHROPIC_API_KEY=            # clause extraction, escalation drafting, flux (C / D)
+OPENAI_API_KEY=               # optional: planf3 plan images only
+MOSS_API_KEY=                 # optional: Moss inference / memory, per spec stack</code></pre></li>
+        <li><code class="status">[]</code> Fill the local <code>.env</code> from the example. Only the two DB URLs are needed for B. No B code calls a model.</li>
+      </ul>
+
+      <h4>0.2. Load env and protect the dev DB in the Makefile</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> At the top of the <code>Makefile</code>: <code>-include .env</code> then <code>export</code>, so <code>make seed</code>/<code>make year</code> see <code>DATABASE_URL</code>.</li>
+        <li><code class="status">[]</code> Change <code>test:</code> to run <code>DATABASE_URL=$${TEST_DATABASE_URL:?set TEST_DATABASE_URL to a scratch db} uv run pytest -q</code>, so tests can never wipe the demo DB.</li>
+        <li><code class="status">[]</code> Change <code>db-up:</code> to fall back when compose is missing: <code>docker compose up -d db || docker run -d --name jade-tpa-db -e POSTGRES_USER=tpa -e POSTGRES_PASSWORD=tpa -e POSTGRES_DB=tpa -p 5433:5432 -v jade-tpa-pgdata:/var/lib/postgresql/data postgres:16</code>. Add a <code>db-scratch:</code> target that runs <code>createdb tpa_scratch</code> inside the container (idempotent).</li>
+      </ul>
+
+      <h4>0.3. Commit the workspace on main</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Review <code>git status</code>: <code>spec.md</code> (final spec), <code>.gitignore</code>, <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>.claude/</code> (rules plus the edit-blocking hook). Check <code>.claude/</code> for anything local-only (for example <code>settings.local.json</code>) and leave that out.</li>
+        <li><code class="status">[]</code> With the user's go-ahead, commit them on a branch <code>chore/rules-and-final-spec</code> and merge to main (or commit straight to main if the team works that way).</li>
+      </ul>
+
+      <h4>0.4. Testing Strategy</h4>
+      <p>Shell checks only; nothing in Python changes in this phase.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>git check-ignore .env</code> — prints <code>.env</code>, so secrets can't be staged.</li>
+        <li><code class="status">[]</code> <code>make db-up &amp;&amp; make db-scratch</code> — Postgres 16 on 5433 with <code>tpa</code> and <code>tpa_scratch</code>, compose or not.</li>
+        <li><code class="status">[]</code> <code>env -u TEST_DATABASE_URL make test</code> — fails fast with the "set TEST_DATABASE_URL" message.</li>
+        <li><code class="status">[]</code> <code>make test</code> on main — 48 passed (main's suite, unchanged).</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 1: Check out the branch on top of the new main</h3>
+      <p>Work on a local branch that tracks B, rebased onto the main from Phase 0. The branch has no conflicts expected (main has no commits past merge base <code>8698046</code> other than Phase 0's).</p>
+      <h4>1.1. Branch</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>git switch -c part-b-ready origin/PART-B-CL &amp;&amp; git rebase main</code></li>
+        <li><code class="status">[]</code> Record the baseline numbers (precision, recall, escalation rate, autonomy at month 1 and month 9) in the PR description draft. They are the "before" for every later phase.</li>
+      </ul>
+      <h4>1.2. Testing Strategy</h4>
+      <p>Re-run this session's baseline on the rebased branch.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>make test</code> — 61 passed.</li>
+        <li><code class="status">[]</code> <code>make year</code> (DATABASE_URL = scratch) — all 12 months run. Month 12: precision 0.9737, recall 0.9524.</li>
+        <li><code class="status">[]</code> <code>uv run python scripts/evaluate.py --as-of month-1 --as-of month-9</code> — matches the baseline in Problem.</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 2: The engine never approves anything</h3>
+      <p>Defaults leave decisions to a human; stand-ins are an explicit opt-in that names who decided. Rules 5/12: every approval traces to a named actor who made it.</p>
+      <figure>
+        <!-- {{PHASE_IMAGE: a period card stopping at REVIEWED with an empty signature line, versus a stand-in actor badge signing}} -->
+        <figcaption>Alone, the engine stops at REVIEWED; only a named actor signs.</figcaption>
+      </figure>
+      <h4>2.1. Change the defaults in <code>tpa/cycle.py</code></h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Replace <code>controller_approves</code> with <code>await_approval(...) -&gt; None</code> and <code>reviewer_signs_clean</code> with <code>await_signature(...) -&gt; None</code>, and make them the <code>Hooks</code> defaults. Result: restatement findings stay <code>escalated</code>, and clean periods stop at <code>REVIEWED</code>.</li>
+        <li><code class="status">[]</code> Keep <code>default_judge</code>'s mechanical auto-resolution (duplicates, no-proof, late returns). Those are agent decisions under a mined control, recorded as <code>decided_by="agent"</code>, not human approvals. Confirm each one posts only what rule 02 allows: a dispute or re-estimate, never a write-off or an approval.</li>
+        <li><code class="status">[]</code> Check that nothing else hard-codes an approver. <code>grep -nE '"controller"|"close_reviewer"' tpa/</code> should return only role names in config and the autopilot.</li>
+      </ul>
+      <h4>2.2. Move stand-in approval and signing into <code>tpa/autopilot.py</code></h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>autopilot.hooks()</code> returns <code>Hooks(judge=judge, approve=standin_approve, sign=standin_sign)</code>, using the actor ids from <code>ACTOR_FOR_ROLE</code>.</li>
+        <li><code class="status">[]</code> Every stand-in decision's note says <code>stand-in &lt;actor&gt;</code> (the judge already does this), so the interrogation chain shows it wasn't the engine.</li>
+        <li><code class="status">[]</code> <code>scripts/step.py</code> without <code>--autopilot</code> prints <code>N periods awaiting sign-off, M restatements awaiting approval</code> instead of implying a close.</li>
+      </ul>
+      <h4>2.3. Update tests and README</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>tests/test_engine.py::engine_alone</code>: expect REVIEWED, not SIGNED, and the restatement pending. Then call <code>restate.apply(cur, fid, "controller", at, period=...)</code> explicitly and assert the catch-ups still equal <code>answer_key.moment</code> to the cent ($1,391,636.52 over Feb–Jul).</li>
+        <li><code class="status">[]</code> New <code>tests/test_hooks.py</code>: after a full engine-alone run, <code>SELECT count(*) FROM period_signoffs</code> = 0 and no <code>ledger_entries.approved_by</code> is set except on agent-decided mechanical postings.</li>
+        <li><code class="status">[]</code> In the README hook table, change the defaults column to "none, waits for a human".</li>
+      </ul>
+      <h4>2.4. Testing Strategy</h4>
+      <p>pytest against the scratch DB, plus a full stand-in year to show the metrics didn't move.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>make test</code> — all green, including <code>test_hooks.py</code>.</li>
+        <li><code class="status">[]</code> <code>uv run python scripts/step.py --reset --through month-12</code> — no SIGNED period and no posted restatement.</li>
+        <li><code class="status">[]</code> <code>make year</code> — precision and recall equal the Phase 1 baseline (stand-ins now carry the approvals).</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 3: Prove the gate edits, then hand them to A</h3>
+      <p>The two <code>tpa/gates.py</code> edits look like correctness fixes, not weakenings. That has to be shown with tests, and A (the gates owner) has to approve. If a test shows a gate no longer blocks a real violation, revert that edit and fix the engine instead.</p>
+      <h4>3.1. Isolate</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Split the <code>gates.py</code> hunk into its own commit, <code>gates: count disputed deductions as arrived; check straddle shares per origin</code>, so A can review it alone.</li>
+      </ul>
+      <h4>3.2. Adversarial tests in <code>tests/test_gates_b.py</code></h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <em>Stale, no claim at all</em>: an accrual aged past lag + 2 with no clearing and no dispute still fails <code>no_stale_accruals</code>.</li>
+        <li><code class="status">[]</code> <em>Stale, disputed</em>: same accrual plus a dispute line carrying a <code>deduction_id</code> passes. The claim arrived, so the accrual isn't an orphan (rule 03).</li>
+        <li><code class="status">[]</code> <em>Dispute line with no deduction_id</em> doesn't count as arrived.</li>
+        <li><code class="status">[]</code> <em>Straddle, both shares inside</em> passes; <em>straddle with one share cleared against an origin outside the window</em> fails, on that share's entry id.</li>
+        <li><code class="status">[]</code> <em>Single-origin claim that runs past the window end</em> still fails: the per-share narrowing must only apply when <code>origins &gt; 1</code>.</li>
+      </ul>
+      <h4>3.3. Review hand-off</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Write a three-line rationale per edit in the PR. Request A's review on the gates commit. Don't merge it unreviewed.</li>
+      </ul>
+      <h4>3.4. Testing Strategy</h4>
+      <p>Hand-built ledger fixtures (as in <code>tests/test_gates.py</code>), positive and negative case for each edit.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>DATABASE_URL=$TEST_DATABASE_URL uv run pytest -q tests/test_gates.py tests/test_gates_b.py</code> — main's gate tests plus the new ones pass.</li>
+        <li><code class="status">[]</code> <code>make test</code> — whole suite green.</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 4: Thresholds come from company policy</h3>
+      <p>Move every automation threshold and tolerance into <code>tpa/policy.py</code>, each labelled as company policy with its derivation, so nothing reads as a GAAP requirement (rule 6). Values that were picked by looking at the answer key are re-derived from history data, or set as a stated policy choice and the metric reported honestly.</p>
+      <h4>4.1. Inventory and move</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Move these into <code>tpa/policy.py</code>, importing them where they are used:
+          <table>
+            <tr><th>Constant</th><th>Now in</th><th>Value</th><th>Provenance to record</th></tr>
+            <tr><td><code>VARIANCE_NOISE_FLOOR_PCT</code></td><td>controls.py</td><td>0.01</td><td>noise floor below which a variance is not a hit</td></tr>
+            <tr><td><code>DRIFT_TOLERANCE_PCT</code></td><td>controls.py</td><td>1.0</td><td>redemption drift tolerance (REDEMPTION-DRIFT is learned live, not mined)</td></tr>
+            <tr><td><code>DRIFT_OWNER</code></td><td>controls.py</td><td>trade_promotion_accountant</td><td>role mapping</td></tr>
+            <tr><td><code>MATERIALITY_RATE</code></td><td>onboarding.py</td><td>0.001</td><td>flux materiality as a share of activity</td></tr>
+            <tr><td><code>STALE_GRACE_PERIODS</code></td><td>gates.py (A)</td><td>2</td><td>spec: "no accrual aged beyond two periods". Leave it in gates and just reference it.</td></tr>
+          </table>
+        </li>
+        <li><code class="status">[]</code> Each constant gets a one-line docstring: <code># Company policy, not GAAP. Derived from: ...</code>.</li>
+        <li><code class="status">[]</code> <code>grep -nE 'Decimal\("[0-9.]+"\)' tpa/controls.py tpa/onboarding.py tpa/cycle.py tpa/execute.py tpa/flux.py</code> — any threshold-like literal left over moves too. <code>CENT</code>, <code>ZERO</code> and <code>HUNDRED</code> stay.</li>
+      </ul>
+      <h4>4.2. De-tune</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> For each moved value, write down in the policy docstring how it would be set without the answer key (for example, the noise floor is the 95th percentile of accepted variances in the history year). Where the miner can derive it from history, derive it in <code>onboarding.derive_priors</code>. Don't pick a number that maximizes recall.</li>
+        <li><code class="status">[]</code> Re-run the evaluator. If precision or recall drops, report it in the PR rather than re-tuning. The spec says to frame a mid-range number, not hide it.</li>
+      </ul>
+      <h4>4.3. Testing Strategy</h4>
+      <p>Behaviour stays deterministic; any metric change is explained.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>make test</code> — green, including <code>test_miner_finds_every_control_history_can_teach</code> (mined thresholds unchanged).</li>
+        <li><code class="status">[]</code> <code>make year</code> — metrics recorded against the baseline, with any delta explained in the PR.</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 5: One implementation per rule</h3>
+      <p>The replay (onboarding) and the live cycle have to share math, or the mined controls describe a different system from the one that runs.</p>
+      <h4>5.1. Consolidate</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <strong>Activity-day split.</strong> Move <code>onboarding.activity_share</code> into <code>tpa/accrual.py</code> as a pure function. Have both onboarding and the <code>allocate</code> decision in <code>execute.py</code> call it. Add a pure test where a 10-day claim split 4/6 over two months gives 40/60 to the cent, with the remainder cent landing on the later share.</li>
+        <li><code class="status">[]</code> <strong>Scan-back estimate.</strong> <code>onboarding.estimate</code> and <code>execute.scan_back_estimate</code> both go through one function that takes <code>(volume_known_at, terms_known_at)</code>. Onboarding passes the same time for both; restatement passes different ones.</li>
+        <li><code class="status">[]</code> <strong>Program lookup.</strong> <code>controls.match_program</code> is canonical. Find the other lookups with <code>grep -nE 'program_type_for_reason|FROM trade_programs' tpa/</code> and route them through it.</li>
+      </ul>
+      <h4>5.2. Testing Strategy</h4>
+      <p>Refactor-only: outputs must match exactly. Compare the ledger before and after.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Before the refactor: <code>make year</code>, then dump <code>SELECT journal_id, account, debit, credit, valid_time FROM ledger_entries ORDER BY id</code> to <code>/tmp/before.tsv</code>. After it: same dump to <code>after.tsv</code>, and <code>diff</code> is empty.</li>
+        <li><code class="status">[]</code> <code>make test</code> — green, including the new activity-share test.</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 6: SoD throw and the precedent loop (B-side minimum)</h3>
+      <p>Two never-cut items have their B-side hooks unwired. Do the smallest correct version so the metrics mean something. C replaces the model-played humans later without changing these interfaces.</p>
+      <figure>
+        <!-- {{PHASE_IMAGE: a sales lead badge hitting a hard red barrier "SoD", beside a loop arrow escalate → answer → precedent → silent}} -->
+        <figcaption>The self-approval throws; the first answer becomes a precedent and the repeat passes silently.</figcaption>
+      </figure>
+      <h4>6.1. <code>tpa/capability.py</code></h4>
+<pre><code>class SegregationOfDutiesError(PermissionError): ...
+
+def can_approve(cur, actor_id: str, target_type: str, target_id: str) -&gt; None:
+    """Raise if the actor negotiated the program the target arises from. Code, not a prompt."""
+    program_id = program_of(cur, target_type, target_id)   # deduction → program via controls.match_program
+    negotiated_by = one_row(cur, "SELECT negotiated_by FROM trade_programs WHERE id = %s", (program_id,))
+    if negotiated_by and negotiated_by["negotiated_by"] == actor_id:
+        raise SegregationOfDutiesError(
+            f"{actor_id} negotiated {program_id}; approval routed to controller.")</code></pre>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Make <code>cycle.on_event</code>'s default <code>enforce_sod</code>: for a <code>scripted_events</code> row with <code>action='approve'</code>, call <code>can_approve</code>. On <code>SegregationOfDutiesError</code>, raise a finding with <code>escalation_type='sod'</code>, <code>severity='critical'</code>, evidence = <code>{event_id, actor_id, program_id, target}</code> and summary = the error text, then route it to the controller. Nothing posts.</li>
+        <li><code class="status">[]</code> The finding needs a <code>control_id</code> (FK). Check how <code>evaluate.py</code> matches <code>sales_lead_self_approval</code> and use what it expects. If no control row fits, raise it with C/A rather than inventing a control: SoD is code, not a mined control (<code>constants.py</code> says so).</li>
+        <li><code class="status">[]</code> <code>execute.execute</code> calls <code>can_approve</code> whenever <code>decided_by</code> is a <code>sales_lead</code>, so the throw applies to every approval path, not just scripted events.</li>
+      </ul>
+      <h4>6.2. Escalation and precedent rows from the stand-ins</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> In <code>autopilot.judge</code>, look up <code>precedents</code> on <code>(control_id, conflict_type or '', customer_id)</code>. On a <strong>hit</strong>, apply the stored decision silently with <code>note="precedent PR-…"</code>. On a <strong>miss</strong>, insert an <code>escalations</code> row (to_role, question = <code>evidence.summary</code>, options), answer it as the stand-in, insert a <code>precedents</code> row with reasoning, link <code>became_precedent_id</code>, then execute.</li>
+        <li><code class="status">[]</code> The prior-year mapping stays as what the stand-in <em>answers</em>. It no longer skips the escalation. Expected result: escalations cluster in early months per customer and fall by month 9.</li>
+        <li><code class="status">[]</code> Ids come from <code>Prefix.ESCALATION</code> / <code>Prefix.PRECEDENT</code> via <code>execute.next_id</code>.</li>
+      </ul>
+      <h4>6.3. Testing Strategy</h4>
+      <p>pytest for the throw and the loop; the evaluator for the metrics.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>tests/test_sod.py</code> — the sales lead approving their own program raises <code>SegregationOfDutiesError</code> with a readable message; a controller approving the same target doesn't; no ledger line is written by the attempt.</li>
+        <li><code class="status">[]</code> A loop test: the same (control, conflict, customer) twice gives exactly one <code>escalations</code> row, and the second finding resolves with a precedent note.</li>
+        <li><code class="status">[]</code> <code>make year</code> — E-48 and E-50 no longer listed as missed. Recall at month 12 ≥ the baseline.</li>
+        <li><code class="status">[]</code> <code>uv run python scripts/evaluate.py --as-of month-1 --as-of month-9</code> — escalation rate at month 1 &gt; 0 and month 9 &lt; month 1.</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 7: Root-cause the stale-accrual false positives</h3>
+      <p>FN-0024 (2026-05) and FN-0067 (2026-10) are <code>CTL-STALE-ACCRUAL</code> findings the answer key does not expect.</p>
+      <h4>7.1. Investigate</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> For each one, print its evidence (<code>accrual_key</code>, age, outstanding), the deductions landed for that program/origin, and the answer key's <code>behavioural</code> entries. Decide which of three causes it is:
+          <ol>
+            <li>the claim arrived but was matched to another origin (a matching bug, so fix it in <code>controls</code>/<code>execute</code>);</li>
+            <li>the lag prior is wrong for that customer (fix the prior derivation);</li>
+            <li>the accrual really is stale and the answer key is missing it (raise it with A, and don't edit the key from B).</li>
+          </ol>
+        </li>
+        <li><code class="status">[]</code> Fix only a root cause you have shown exists. Don't add a per-case exception or move the grace period.</li>
+      </ul>
+      <h4>7.2. Testing Strategy</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> A regression test that reproduces the fixed cause on a minimal fixture.</li>
+        <li><code class="status">[]</code> <code>make year</code> — the FP is gone, or is documented in the PR with A's agreement on the key.</li>
+        <li><code class="status">[]</code> <code>make test</code> — green.</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 8: Reconciliation check, PR and merge</h3>
+      <p>Last proof that the ledger reconciles under rule 03, then the PR.</p>
+      <h4>8.1. Reconciliation identity</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Add <code>test_reconciliation_identity</code> to <code>test_engine.py</code>, for each (program, origin) after the stand-in year: <code>ending = opening + accruals + adjustments(reestimate/restatement/top-up/release) − cleared</code> on account 2300, equal to <code>liability_outstanding</code> to the cent.</li>
+        <li><code class="status">[]</code> And for each deduction: exactly one resolution. Its 1250 balance is zero, or it is held in an open finding (rule 03, one deduction to one resolution). AR (1200) is never cleared without the 2300 relief in the same journal family.</li>
+        <li><code class="status">[]</code> Every 4100 posting is contra-revenue (revenue range); no trade promotion line hits a 6xxx expense account except deliberate write-offs (6900) approved by a named controller.</li>
+      </ul>
+      <h4>8.2. PR</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Squash fixups into logical commits: env, hooks, gates (for A), policy, dedupe, SoD and precedents, stale fix, reconciliation tests.</li>
+        <li><code class="status">[]</code> Open the PR <code>part-b-ready → main</code> with a before/after metrics table, the gate rationale, the de-tuning notes and the open questions. Ask A to review gates and C to review capability and precedents. Update this plan's metadata (commits, forward refs) when it lands.</li>
+      </ul>
+      <h4>8.3. Testing Strategy</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>make test</code> — green, with test count = 61 + the new tests.</li>
+        <li><code class="status">[]</code> <code>make year</code> — the moment matches to the cent; E-48 and E-50 caught; COST 2026-05 and KR 2026-08/09 ESCALATED only on the 3 planted <code>ambiguous_terms</code> (expected, source conflict).</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 9 (optional): Sign-off package and Excel-verifiable export</h3>
+      <p>Spec step 12 ("package the period for the close reviewer"), the new spec note "everything verifiable through excel", and D's <code>GET /api/period/{period}</code> contract all need one read model. Build it only if Phases 0–8 are done before D needs it.</p>
+      <h4>9.1. Build</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>tpa/package.py: package(cur, period, as_of) -&gt; {state, postings[], findings[], escalations[], gates{}, flux[]}</code>, per customer, matching the API shape in <code>spec.md</code>. Read-only.</li>
+        <li><code class="status">[]</code> <code>scripts/export.py --period 2026-08 --as-of month-8 --out data/export/</code> writes CSVs with the stdlib <code>csv</code> module (ledger lines, the trial balance as of, the per-program reconciliation identity, gate results). Each CSV has a <code>check</code> row Excel can recompute (Σdebit = Σcredit).</li>
+      </ul>
+      <h4>9.2. Testing Strategy</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> A test that <code>package()</code> totals equal <code>balances_as_of</code> for the same period/as_of.</li>
+        <li><code class="status">[]</code> <code>uv run python scripts/export.py --period 2026-02 --as-of month-2</code> vs <code>--as-of month-8</code> — two different February balances (the spec's "same table, two correct answers").</li>
+      </ul>
+      <div class="loop">
+        🔁 <strong>Do not exit this phase until every box above is checked.</strong>
+        If any command fails, fix the cause and re-run — loop until all pass.
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GLOBAL VALIDATION ===== -->
+  <section id="validation">
+    <h2>Validation Commands</h2>
+    <p>Execute these commands to validate the entire plan is complete:</p>
+    <ul class="checklist">
+      <li><code class="status">[]</code> <code>git check-ignore .env &amp;&amp; git ls-files .env</code> — ignored and never tracked.</li>
+      <li><code class="status">[]</code> <code>make db-up &amp;&amp; make db-scratch</code> — DB up on any machine.</li>
+      <li><code class="status">[]</code> <code>make test</code> — full suite green against <code>TEST_DATABASE_URL</code>.</li>
+      <li><code class="status">[]</code> <code>DATABASE_URL=$TEST_DATABASE_URL uv run python scripts/step.py --reset --through month-12</code> — engine alone: zero signatures, zero posted restatements.</li>
+      <li><code class="status">[]</code> <code>DATABASE_URL=$TEST_DATABASE_URL make year</code> — stand-in year runs; the moment is $1,391,636.52 over Feb–Jul; E-48/E-50 caught.</li>
+      <li><code class="status">[]</code> <code>DATABASE_URL=$TEST_DATABASE_URL uv run python scripts/evaluate.py --as-of month-1 --as-of month-9</code> — escalation rate falls month 1 to month 9; precision/recall reported with deltas explained.</li>
+      <li><code class="status">[]</code> <code>grep -rnE '"controller"|"close_reviewer"' tpa/cycle.py tpa/restate.py</code> — no hard-coded approvers.</li>
+      <li><code class="status">[]</code> <code>git log --oneline main..part-b-ready</code> — logical commits; gates commit separate, reviewed by A.</li>
+    </ul>
+    <div class="loop">
+      🔁 <strong>The plan is not complete until every box is checked and every command passes. If for some reason a step is not possible to complete, mark it with [f] and move on if possible.</strong>
+    </div>
+  </section>
+
+  <!-- ===== QUESTIONABLES ===== -->
+  <section id="questionables">
+    <h2>Questionables</h2>
+    <figure>
+      <!-- {{QUESTIONABLES_IMAGE: a boundary line between three lanes A, B, C with two items sitting on the line}} -->
+      <figcaption>The open decisions sit on workstream boundaries.</figcaption>
+    </figure>
+    <details>
+      <summary>Should B implement <code>can_approve</code> and precedent writing, or wait for C?</summary>
+      <p class="qa-answer">Recommendation: B ships the minimal versions in Phase 6, since both are never-cut and E-48/E-50 plus the escalation-rate proof depend on them. The interfaces (<code>can_approve(cur, actor, target_type, target_id)</code>, precedent key <code>(control, conflict_type, customer)</code>) follow the spec exactly, so C swaps in model-played humans without changing call sites. Confirm with C before Phase 6 so they don't build a parallel copy.</p>
+    </details>
+    <details>
+      <summary>Are the two <code>gates.py</code> edits correct, or weakenings?</summary>
+      <p class="qa-answer">Assumption: correct. A disputed deduction is a claim that arrived (rule 03: an orphan accrual is one with no claims outstanding), and a straddling claim allocated by activity days should be window-checked per share. Phase 3 has to prove both with negative tests, and A has to approve. If A disagrees, revert the edit and make the engine satisfy the original gate.</p>
+    </details>
+    <details>
+      <summary>If de-tuning thresholds lowers precision or recall, what then?</summary>
+      <p class="qa-answer">Report the lower number. The spec says to frame a mid-range number honestly, and rule 6 forbids passing tuned values off as anything else. A value the team chooses on purpose is fine if it is labelled as company policy with a rationale. A value fitted to the answer key isn't.</p>
+    </details>
+    <details>
+      <summary>Mechanical auto-resolution by the agent (duplicates, no-proof, late returns): is that an "approval"?</summary>
+      <p class="qa-answer">Assumption: no. These post disputes or re-estimates only. That is holding or disputing, which rule 02 lets automation do, and it never clears or writes off. They are recorded as <code>decided_by="agent"</code> with the mined control and precedent ids. If the team reads "never approves anything" more strictly, route them through the stand-ins too.</p>
+    </details>
+    <details>
+      <summary>What goes in <code>.env</code>? Nothing in B reads a key today.</summary>
+      <p class="qa-answer">Only <code>DATABASE_URL</code> and <code>TEST_DATABASE_URL</code> matter to B. <code>ANTHROPIC_API_KEY</code> is for C/D (extraction, drafting, flux narrative). <code>OPENAI_API_KEY</code> is only for this plan's images; without it the image slots stay placeholders. The Moss key depends on the integration the spec names but no one owns yet. The urgent part is adding <code>.env</code> to <code>.gitignore</code> before anyone fills it.</p>
+    </details>
+    <details>
+      <summary>Does Phase 9 (sign-off package, CSV export) belong to B or D?</summary>
+      <p class="qa-answer">The read model is B's (it reads B's ledger and periods). The DocuSign-like and Ramp-like presentation is D's. Optional here. Agree the shape with D first; it is already specified in <code>spec.md</code>'s API contract.</p>
+    </details>
+    <details>
+      <summary>The spec's "send the gates to Slack, mention a mentor" TODO</summary>
+      <p class="qa-answer">This is an outward message to a real person. It is out of this plan's scope and isn't something an agent should send unasked. The team should send it once Phase 3's gate rationale is written, since that is the context the message needs.</p>
+    </details>
+  </section>
+
+  <!-- ===== NOTES ===== -->
+  <section id="notes">
+    <h2>Notes</h2>
+
+    <h3>What this session verified</h3>
+    <table>
+      <tr><th>Check</th><th>Result</th></tr>
+      <tr><td><code>.env</code></td><td>Exists, 0 bytes; not in <code>.gitignore</code>; no code loads it (<code>tpa/db.py</code> reads only <code>DATABASE_URL</code> from the process env).</td></tr>
+      <tr><td>Docker</td><td>Client 29.9.0 / server 29.5.2 (colima); <code>docker compose</code> plugin missing, so <code>make db-up</code> fails.</td></tr>
+      <tr><td>DB</td><td>Started container <code>jade-tpa-db</code> (postgres:16, port 5433, volume <code>jade-tpa-pgdata</code>) and created <code>tpa_scratch</code>.</td></tr>
+      <tr><td>Branch</td><td><code>origin/PART-B-CL</code> = 1 commit on top of main's head <code>8698046</code>; fast-forwardable.</td></tr>
+      <tr><td>Tests</td><td>61 passed in 12s (48 existing + 13 new).</td></tr>
+      <tr><td><code>make year</code></td><td>12 months in ~3s. Month 12: P 0.9737 / R 0.9524 / escalation 0.0 / autonomy 0.9167. Restatement finding FN-0054 raised when AM-02 lands in 2026-08; REDEMPTION-DRIFT learned in 2026-09.</td></tr>
+      <tr><td>Evaluator</td><td>Month 1: 100% / 75% / 0% / 100%. Month 9: 98.3% / 94.6% / 0% / 88.9%. Missed: E-48, E-50. FPs: FN-0024, FN-0067.</td></tr>
+      <tr><td>Expected escalations</td><td>COST 2026-05 and KR 2026-08/09 stay ESCALATED on RATE-CONFLICT with no precedent. These match the 3 planted <code>ambiguous_terms</code> source conflicts, which is the intended behaviour.</td></tr>
+    </table>
+
+    <h3>New spec items checked against B</h3>
+    <p>Compared with the committed spec, the final <code>spec.md</code> is mostly formatting plus <code>### AGENT TODO</code> notes. The ones that touch B: "verifiable through Excel" (Phase 9), Ramp-style flux and DocuSign-style sign-off (D presents; B supplies <code>package()</code>), "rejections carry reasoning, with sources" (precedents.reasoning in Phase 6). Sources for the data tables, the Moss integration, the confidence-building UI and Ramp/QuickBooks data-model research are D/team items and outside this plan.</p>
+
+    <h3>Dependencies</h3>
+    <p>No new Python libraries. CSV export uses the stdlib. If the team wants native <code>.xlsx</code>, run <code>uv add openpyxl</code> in Phase 9. Optional: <code>brew install docker-compose</code> to restore <code>make db-up</code> as written.</p>
+
+    <h3>Rejected approaches</h3>
+    <ul>
+      <li><strong>Merging as-is and fixing later.</strong> It writes fabricated approvals into an insert-only ledger. Those rows can't be removed, only reversed, so the cost compounds.</li>
+      <li><strong>Making the stale gate optional to drop the FPs.</strong> That weakens a gate (forbidden), and it hides a matching bug if that's the cause.</li>
+      <li><strong>Seeding <code>precedents</code> from the history year so everything hits.</strong> That makes the escalation rate 0% forever and erases the self-improvement proof.</li>
+    </ul>
+
+    <h3>Housekeeping</h3>
+    <p>This session left a detached worktree of the branch at the scratchpad path, used to run the tests. It is removed after the plan is saved. Phase 1 creates the real working branch in the repo.</p>
+    <figure>
+      <!-- {{NOTES_IMAGE: before/after bar pair — escalation rate flat at zero vs falling from month 1 to month 9}} -->
+      <figcaption>The self-improvement proof: escalation rate must fall, not sit at zero.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== AMENDMENTS ===== -->
+  <section id="amendments">
+    <h2>Amendments</h2>
+    <p>None yet.</p>
+  </section>
+
+</main>
+</body>
+</html>

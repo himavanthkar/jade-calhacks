@@ -71,6 +71,9 @@ def main() -> None:
                 m = metrics(cur, key, spec)
                 print(f"{m['as_of']}  precision {m['precision']}  recall {m['recall']}  "
                       f"escalation rate {m['escalation_rate']}  autonomy {m['autonomy']}")
+            j = m["judgment"]
+            print(f"    answers that stuck: {j['settled_by_precedent']} of {j['repeat_findings']} repeats settled by "
+                  f"precedent, {j['asked_again']} asked again, {j['first_time_questions']} first-time questions")
             for row in m["missed"]:
                 print(f"    missed {row['error_id']} {row['type']} ({row['period']} {row['customer_id']})")
             for row in m["false_positives"]:

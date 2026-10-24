@@ -48,6 +48,45 @@ def _ratio(n: int, d: int) -> float | None:
     return round(n / d, 4) if d else None
 
 
+def judgment_record(cur: psycopg.Cursor, as_of: str, skip: set[str]) -> dict:
+    """Did answers stick? A repeat is a finding whose (control, conflict key, customer) a person had
+    already answered before it was raised. Repeats should settle silently by precedent; one that is
+    asked again should have a reason (a larger exposure than the standing approval covers). The
+    first time a situation appears it should be asked: those are counted apart."""
+    from tpa.cycle import MECHANICAL
+    from tpa.judgment import conflict_key
+
+    cur.execute("SELECT control_id, conflict_type, customer_id, decided_at, exposure_limit FROM precedents")
+    answered = defaultdict(list)
+    for control, key, customer, at, limit in cur.fetchall():
+        answered[(control, key, customer)].append((at, limit))
+    cur.execute("""SELECT f.id, f.control_id, f.conflict_type, f.customer_id, f.evidence, f.created_at, f.exposure,
+                          EXISTS (SELECT 1 FROM escalations e WHERE e.finding_id = f.id)
+                   FROM findings f WHERE f.period <= %s AND f.escalation_type IS DISTINCT FROM 'sod' ORDER BY f.id""",
+                (as_of,))
+    repeats, silent, again, first = 0, 0, [], 0
+    for fid, control, ctype, customer, evidence, created, exposure, asked in cur.fetchall():
+        if fid in skip or control in MECHANICAL:
+            continue
+        ev = evidence if not isinstance(evidence, str) else json.loads(evidence)
+        key = (control, conflict_key({"conflict_type": ctype, "evidence": ev}), customer)
+        before = [limit for at, limit in answered.get(key, []) if at < created]
+        if before:
+            repeats += 1
+            if ev.get("precedent_id") and not asked:
+                silent += 1
+            elif asked:
+                limits = [x for x in before if x is not None]
+                standing = max(limits) if limits else None
+                again.append({"finding_id": fid, "exposure": exposure, "standing_approval": standing,
+                              "reason": "larger than the standing approval" if standing is not None and exposure
+                              and exposure > standing else "no precedent applied"})
+        elif asked:
+            first += 1
+    return {"repeat_findings": repeats, "settled_by_precedent": silent, "asked_again": len(again),
+            "asked_again_detail": again, "precedent_hit_rate": _ratio(silent, repeats), "first_time_questions": first}
+
+
 def metrics(cur: psycopg.Cursor, answer_key: dict, as_of: str) -> dict:
     as_of = resolve_period(as_of)
     in_window = lambda row: row["period"] <= as_of
@@ -128,6 +167,8 @@ def metrics(cur: psycopg.Cursor, answer_key: dict, as_of: str) -> dict:
     )
     periods = cur.fetchall()
 
+    judged = judgment_record(cur, as_of, {f[0] for f in scenario})
+
     missed = [{"error_id": r["error_id"], "type": r["type"], "period": r["period"],
                "customer_id": r["customer_id"], "expected_outcome": r["expected_outcome"]}
               for r in errors if r["error_id"] not in caught]
@@ -144,6 +185,7 @@ def metrics(cur: psycopg.Cursor, answer_key: dict, as_of: str) -> dict:
             "findings_this_month": len(month), "escalated_this_month": escalated_month,
             "customer_periods": len(periods), "scenario_findings": len(scenario),
         },
+        "judgment": judged,
         "missed": missed,
         "false_positives": false_pos,
     }

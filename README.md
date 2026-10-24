@@ -44,6 +44,8 @@ Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `
 - `tpa/players.py` — the model-played humans (`players.hooks()`, `scripts/step.py --players`). Each role answers its cards through `judgment.answer`; with the model on, Claude plays the role and must pick one of the card's options, otherwise it answers as last year's people did.
 - `tpa/api.py` — the HTTP surface: clock, period (with `?as_of=` for "what did it know"), step, sign, controls, precedents, escalations and answers, explain, ask, metrics. Decimals go out as strings. `TPA_HUMANS` picks who answers a step's cards.
 - `tpa/explain.py` — the interrogation box. `chain(entry_id)` walks rule → terms (clause) → inputs → knew-at (and what wasn't known yet) → approved → signed → restated, every step citing ids. `ask(question)` resolves the records a question names and answers from their chains.
+- Working with people (`tpa/judgment.py`, `tpa/cycle.py`): at each close, a card unanswered for `policy.CARD_FOLLOW_UP_DAYS` (10) goes up to the controller, saying who didn't answer and that the close is waiting. A colleague's half-done work (`handoffs`) is re-checked against the program they propose, never trusted: finished if every control passes, handed back with the reason if not, and refused outright when the proposed program's terms don't cover the claim (checks against the wrong program would pass vacuously).
+- `tpa/evaluate.py` also reports whether answers stuck: of the findings a person had already answered before they arose, how many settled silently by precedent, and why any were asked again.
 - `tpa/scenario.py` — live scenarios for the judges' "try one of ours": `POST /api/scenario` with a kind (`deduction`, `duplicate`, `backup`, `return`, `amendment`, `approval_attempt`) adds source rows to the month the clock is on, and the engine meets them on the next step like any other data (`step: true` runs it at once). `GET /api/scenario/examples` gives one-click scenarios against the current books. Injections are recorded in `scenario_injections` and scored apart from the answer key (`scenario_findings`).
 - `tpa/review.py` — the close's analytical review: total accrued trade promotion liability as a share of annualized net sales, against General Mills' reported ratio from the latest 10-K public at the close (2.41% FY2025, 2.68% FY2026 from 2026-07-01). Within ±50% (`policy.ANALYTICAL_REVIEW_TOLERANCE`) it is commentary; outside, the sign-off package flags it for the reviewer's explanation. Judgment, not a gate. On the seed every month sits inside (2.16%–3.37%).
 - `tpa/package.py` — the sign-off package for a period as of any moment: postings, balances, findings with their escalations, gates re-run as of then, flux, and the reconciliation identity per program.
@@ -60,6 +62,21 @@ How the data is made, what is (and deliberately isn't) done to it, and how teamm
 | **Simulated** | Every transaction: 24 months of shipments, invoices, returns, deductions, claim backup and disputes, the trade programs and their terms, the prior year's human decisions, and the people (role titles only). Transaction-level trade data is never public on either side. |
 | **How it fits** | Every close compares the simulated trade liability with General Mills' real ratio (`tpa/review.py`): 2.16%–3.37% of net sales all year, against 2.41% and 2.68% reported. One brand family at Walmart is $348M a year, about 11% of General Mills' North America Retail sales to Walmart. The $1.39M catch-up is 4.8% of TP-0214's annual accrual and 0.008% of net sales: material to the program, immaterial to the company. |
 | **How we know it works** | 50 planted errors with an answer key; precision and recall from `scripts/evaluate.py`. |
+
+## What it got wrong
+
+Mistakes found by testing against seeds we didn't develop on and against injected scenarios, and what changed. Each fix has a test.
+
+| Found by | What it did | Why it was wrong | Fix |
+|---|---|---|---|
+| Seed 42 (unseen) | Flagged Kroger's January display claim as over-claimed | It had split December's straddling display event by days, eating January's accrual. A per-event fee is accrued whole in one month | Clear on the basis it was accrued: an event belongs to the month it starts in (`accrual.claim_share`); the window gate dates events the same way |
+| Injected early claim | Raised a 98% redemption-drift alarm | One claim stream had arrived; Walmart sends two | Judge sell-through only once every stream the customer sent last year covers the month |
+| Injected late backup | Nothing: the claim stayed disputed | Nobody re-checked a claim held for missing backup when the backup came | Re-check on arrival; withdraw our own dispute and clear, or raise what the backup shows |
+| Injected self-approval | Let a sales lead approve an unmatched claim | No program meant no negotiator to compare with | Unverifiable is blocked |
+| Injected handoff | Cleared a claim with no backup | The colleague proposed the wrong program, whose terms don't cover the claim, so every check passed vacuously | A handoff the agreement can't verify goes back |
+| Costco instalments | Released an accrual while its claim sat unapplied | Rule 03: never clear one side and leave the other | Apply the unmatched instalment first, release only the residual |
+
+Scores, seed 1337 / 42 / 2024, month 12: precision 100% / 100% / 100%, recall 100% on all three. Same generator and error types, placed differently: evidence it isn't fitted to one answer key, not that it would catch a kind of error never planted.
 
 ## Plugging into the engine (workstreams C and D)
 

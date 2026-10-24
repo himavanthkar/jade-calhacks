@@ -41,3 +41,7 @@ LOW_CONFIDENCE = Decimal("0.6")
 # explanation before signing. Set before looking at the simulation: the analytical-review
 # convention that a difference above half the expectation is never explained away as noise.
 ANALYTICAL_REVIEW_TOLERANCE = Decimal("0.5")
+
+# Company policy, not GAAP. A card unanswered this many days by the close goes up to the
+# controller, who owns the close: approvers are busy, and the close shouldn't wait on silence.
+CARD_FOLLOW_UP_DAYS = 10

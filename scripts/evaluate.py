@@ -37,6 +37,12 @@ def main() -> None:
         print(f"month {r['live_month']:<6}{fmt(r['precision']):>11}{fmt(r['recall']):>9}"
               f"{fmt(r['escalation_rate']):>12}{fmt(r['autonomy']):>10}")
     last = results[-1]
+    j = last["judgment"]
+    print(f"\nanswers that stuck, as of {last['as_of']}: {j['settled_by_precedent']} of {j['repeat_findings']} repeat "
+          f"situations settled silently by precedent ({fmt(j['precedent_hit_rate'])}); "
+          f"{j['asked_again']} asked again; {j['first_time_questions']} first-time questions")
+    for a in j["asked_again_detail"]:
+        print(f"  asked again {a['finding_id']}: {a['reason']} (${a['exposure']:,} vs ${a['standing_approval'] or 0:,})")
     if last["missed"]:
         print(f"\nmissed as of {last['as_of']}:")
         for m in last["missed"]:

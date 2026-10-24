@@ -169,6 +169,21 @@ CREATE TABLE scenario_injections (
   injected_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- Work a colleague hands over half done: a held deduction, what they propose, what they did and
+-- what is left. The agent re-checks it rather than trusting it, then finishes it or hands it back.
+CREATE TABLE handoffs (
+  id TEXT PRIMARY KEY,                -- 'HO-0001'
+  sim_date DATE NOT NULL,
+  from_actor TEXT NOT NULL REFERENCES actors(id),
+  deduction_id TEXT NOT NULL REFERENCES deductions(id),
+  proposed_program_id TEXT REFERENCES trade_programs(id),
+  proposed_decision TEXT NOT NULL CHECK (proposed_decision IN ('clear', 'dispute')),
+  done TEXT,                          -- the colleague's own words: what they did
+  left_to_do TEXT,                    -- and what they didn't get to
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'returned', 'no_op')),
+  outcome JSONB NOT NULL DEFAULT '{}'
+);
+
 CREATE TABLE scripted_events (
   id TEXT PRIMARY KEY,                -- 'EV-…'
   sim_date DATE NOT NULL,

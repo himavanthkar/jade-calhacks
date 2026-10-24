@@ -21,7 +21,7 @@ from tpa.constants import CUSTOMERS, add_months, period_end, period_of, period_s
 from tpa.cycle import last_period
 from tpa.rows import all_rows, one_row
 
-KINDS = ("deduction", "duplicate", "backup", "return", "amendment", "approval_attempt")
+KINDS = ("deduction", "duplicate", "backup", "return", "amendment", "approval_attempt", "handoff")
 REASON_FOR = {"scan_back": "SB-SUPERCENTER", "display": "DISPLAY", "mdf": "MDF"}
 
 
@@ -198,7 +198,26 @@ def _approval_attempt(cur, p: dict, d: date, made: list[str]) -> None:
     made.append(ev_id)
 
 
-HANDLERS = {"deduction": _deduction, "duplicate": _duplicate, "backup": _backup, "return": _return,
+def _handoff(cur, p: dict, d: date, made: list[str]) -> None:
+    """A colleague hands over a held deduction half done, proposing what to do with it."""
+    _need(p, "from_actor", "deduction_id")
+    actor = one_row(cur, "SELECT * FROM actors WHERE id = %s", (p["from_actor"],))
+    if actor is None or actor["role"] == "agent":
+        raise ScenarioError("from_actor must be one of the people")
+    if not one_row(cur, "SELECT id FROM deductions WHERE id = %s AND available_at < %s", (p["deduction_id"], d)):
+        raise ScenarioError(f"no deduction {p['deduction_id']} has landed yet to hand over")
+    decision = p.get("proposed_decision", "clear")
+    if decision not in ("clear", "dispute"):
+        raise ScenarioError("proposed_decision must be clear or dispute")
+    ho = _id(cur, "handoffs", "HO", 4)
+    cur.execute("""INSERT INTO handoffs (id, sim_date, from_actor, deduction_id, proposed_program_id, proposed_decision,
+                                         done, left_to_do) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (ho, d, actor["id"], p["deduction_id"], p.get("proposed_program_id"), decision, p.get("done"),
+                 p.get("left_to_do")))
+    made.append(ho)
+
+
+HANDLERS = {"handoff": _handoff, "deduction": _deduction, "duplicate": _duplicate, "backup": _backup, "return": _return,
             "amendment": _amendment, "approval_attempt": _approval_attempt}
 
 
@@ -245,6 +264,20 @@ def examples(cur: psycopg.Cursor) -> list[dict]:
     if ship:
         out.append({"title": f"Walmart sends back 2,000 cases of {ship['id']}", "kind": "return",
                     "payload": {"shipment_id": ship["id"], "cases": 2000, "day": 10}})
+    held = one_row(cur, """SELECT d.id, d.customer_id, d.claimed_period FROM deductions d WHERE d.program_id IS NULL
+                             AND d.available_at < %s AND (SELECT COALESCE(SUM(e.debit - e.credit), 0) FROM ledger_entries e
+                               WHERE e.deduction_id = d.id AND e.account LIKE '1250%%') > 0
+                           ORDER BY d.available_at DESC LIMIT 1""", (period_start(period),))
+    if held:
+        fund = one_row(cur, """SELECT program_id FROM program_terms WHERE customer_id = %s AND program_type = 'mdf'
+                                 AND window_start <= %s AND window_end >= %s ORDER BY decision_time DESC LIMIT 1""",
+                       (held["customer_id"], period_end(held["claimed_period"]), period_start(held["claimed_period"])))
+        if fund:
+            out.append({"title": f"The deduction analyst hands over {held['id']} half done", "kind": "handoff",
+                        "payload": {"from_actor": "deductions.human", "deduction_id": held["id"],
+                                    "proposed_program_id": fund["program_id"], "proposed_decision": "clear",
+                                    "done": f"Matched it to {fund['program_id']}'s {held['claimed_period']} instalment.",
+                                    "left_to_do": "Didn't get to clearing it. Out until Monday.", "day": 4}})
     out.append({"title": "TP-0214 renegotiated down to $3.60/case, effective three months ago", "kind": "amendment",
                 "payload": {"program_id": "TP-0214", "new_rate": "3.60",
                             "effective_date": period_start(add_months(period, -3)).isoformat(), "day": 12}})

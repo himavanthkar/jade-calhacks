@@ -128,6 +128,19 @@ def test_the_played_role_must_pick_a_real_option(monkeypatch):
     assert players.played({"evidence": {}}, esc, "persona") == ("program", "as signed")
 
 
+def test_overruling_the_recommendation_needs_a_reason(people):
+    with people.cursor() as cur:
+        judgment.judge(cur, drift(cur, "2026-04"), AT)
+        (esc,) = judgment.open_escalations(cur)
+        assert esc["recommended"] == "acknowledge"
+        assert [o["recommended"] for o in esc["options"]] == [True, False]
+        hold = next(o for o in esc["options"] if o["id"] == "hold")
+        with pytest.raises(ValueError, match="Overruling the recommendation"):
+            judgment.answer(cur, esc["id"], "hold", "tpa.human", AT, reasoning=hold["label"])
+        out = judgment.answer(cur, esc["id"], "hold", "tpa.human", AT, reasoning="Wait for two more months of scans.")
+    assert out["overrode"] == "acknowledge"
+
+
 # ── the year, with judgment and the model-played humans ─────────────────────
 @pytest.fixture(scope="module")
 def year():
@@ -216,14 +229,9 @@ def test_the_simulated_liability_sits_in_general_mills_range_all_year(year):
     assert sum(Decimal(str(d["amount"])) for d in august["drivers"]) == Decimal("1391636.52")
 
 
-def test_overruling_the_recommendation_needs_a_reason(people):
-    with people.cursor() as cur:
-        judgment.judge(cur, drift(cur, "2026-04"), AT)
-        (esc,) = judgment.open_escalations(cur)
-        assert esc["recommended"] == "acknowledge"
-        assert [o["recommended"] for o in esc["options"]] == [True, False]
-        hold = next(o for o in esc["options"] if o["id"] == "hold")
-        with pytest.raises(ValueError, match="Overruling the recommendation"):
-            judgment.answer(cur, esc["id"], "hold", "tpa.human", AT, reasoning=hold["label"])
-        out = judgment.answer(cur, esc["id"], "hold", "tpa.human", AT, reasoning="Wait for two more months of scans.")
-    assert out["overrode"] == "acknowledge"
+def test_answers_stick(year):
+    ds, conn = year
+    with conn.cursor() as cur:
+        j = metrics(cur, ds.answer_key, "month-12")["judgment"]
+    assert j["repeat_findings"] > 20 and j["precedent_hit_rate"] >= 0.9
+    assert all(a["reason"] == "larger than the standing approval" for a in j["asked_again_detail"])

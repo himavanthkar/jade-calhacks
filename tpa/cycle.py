@@ -11,6 +11,7 @@ order the business would see them, and the period closes on its last day:
              10:00  amendments     → restatement of every accrued period they reach back into
              12:00  deductions     → recorded, matched, row controls, cleared if authorised
              13:00  late backup    → a claim held for missing backup is re-checked, and cleared if it passes
+             14:00  handoffs       → a colleague's half-done work is re-checked, then finished or handed back
              15:00  scripted human actions, handed to `hooks.on_event`
   close      18:00  revenue; accruals (spec steps 1–5); clearing deferred to the accrual
              20:00  gates; sign-off of every customer-period with nothing left open
@@ -34,12 +35,12 @@ from tpa.accrual import fixed_fund_amount, rate
 from tpa.asof import sim_clock, terms_as_of
 from tpa.constants import Account, Control as C, CUSTOMERS, add_months, period_end, period_start
 from tpa.controls import (
-    Hit, program_on, check_deduction, check_late_return, check_redemption, exceeds,
+    Hit, claim_dates, program_on, check_deduction, check_late_return, check_redemption, exceeds,
     match_program, root_cause,
 )
 from tpa.execute import (
     accrual_posted, authorise, controls, execute, finding, raise_finding, record_deduction, scan_back_estimate,
-    segments_memo, set_finding_state, withdraw_dispute,
+    dispute, segments_memo, set_finding_state, unresolved_amount, withdraw_dispute,
 )
 from tpa.flux import write_flux
 from tpa.review import write_review
@@ -50,7 +51,8 @@ from tpa.policy import DRIFT_OWNER, DRIFT_TOLERANCE_PCT
 from tpa.restate import on_amendment
 from tpa.rows import all_rows, one_row
 
-RETURNS_AT, AMENDMENTS_AT, DEDUCTIONS_AT, BACKUP_AT, EVENTS_AT = time(8), time(10), time(12), time(13), time(15)
+RETURNS_AT, AMENDMENTS_AT, DEDUCTIONS_AT, BACKUP_AT, HANDOFFS_AT, EVENTS_AT = (
+    time(8), time(10), time(12), time(13), time(14), time(15))
 WAITING_ON_BACKUP = (C.SCAN_NO_BACKUP, C.NO_PROOF)
 CLOSE_AT, SIGN_AT, FLUX_AT = time(18), time(20), time(21)
 UNRESOLVED = ("open", "escalated")
@@ -93,6 +95,8 @@ class Hooks:
     on_event: Callable[[psycopg.Cursor, dict, datetime], None] = ignore_event
     approve: Callable[[psycopg.Cursor, dict, datetime], str | None] = await_approval
     sign: Callable[[psycopg.Cursor, str, str, datetime], str | None] = await_signature
+    # At the close, before sign-off: chase cards nobody has answered. Returns lines for the log.
+    follow_up: Callable[[psycopg.Cursor, str, datetime], list[str]] | None = None
 
 
 @dataclass
@@ -223,6 +227,67 @@ def on_backup(run: Run, backup: dict, when: datetime) -> None:
                        + (" (our dispute withdrawn)" if withdrawn else ""))
 
 
+def on_handoff(run: Run, h: dict, when: datetime) -> None:
+    """A colleague's half-done work. Nothing they did is taken on trust: the claim is checked again
+    against the program they propose, as if it had just arrived. A dispute is always the agent's to
+    make; a clear only if every control passes. Otherwise it goes back, with what the checks found."""
+    cur = run.cur
+    ded = one_row(cur, "SELECT * FROM deductions WHERE id = %s", (h["deduction_id"],))
+    who = one_row(cur, "SELECT name FROM actors WHERE id = %s", (h["from_actor"],))["name"]
+
+    def finish(status: str, **outcome) -> None:
+        cur.execute("UPDATE handoffs SET status = %s, outcome = %s WHERE id = %s",
+                    (status, json.dumps(outcome, default=str), h["id"]))
+        run.log.append(f"{h['id']} from {who} on {ded['id']}: {status} — {outcome.get('reason', '')}")
+
+    pending = unresolved_amount(cur, ded)
+    if pending <= 0:
+        return finish("no_op", reason="already resolved; nothing left to finish")
+    program_id = h["proposed_program_id"] or ded["program_id"] or match_program(cur, ded, when)[0]
+    program = program_id and one_row(cur, "SELECT * FROM trade_programs WHERE id = %s", (program_id,))
+    if not program or program["customer_id"] != ded["customer_id"]:
+        return finish("returned", reason=f"{program_id or 'no program'} isn't one of {ded['customer_id']}'s programs")
+    start, end = claim_dates(ded)
+    terms = terms_as_of(cur, program_id, start, when)
+    if terms is None or not (terms["window_start"] <= start and end <= terms["window_end"]):
+        # Checks against a program whose terms don't cover the claim would pass vacuously: unverifiable.
+        return finish("returned", reason=f"can't verify: {program_id} has no terms covering the claim's dates "
+                                         f"({start} to {end}); the claim isn't this program's")
+    note = f"handed over by {who} ({h['id']}): done — {h['done'] or '—'}; left — {h['left_to_do'] or '—'}"
+    if h["proposed_decision"] == "dispute":
+        j = dispute(cur, ded, program_id, pending, run.period, when, memo=f"Dispute {ded['id']}, {note}")
+        return finish("completed", reason="disputed as proposed (holding is always allowed)", journals=[j])
+    lib = controls(cur)
+    hits = [x for x in root_cause(check_deduction(cur, ded, program_id, when))
+            if x.control_id in lib and exceeds(x, lib[x.control_id]["threshold"])]
+    open_case = one_row(cur, """SELECT id, control_id FROM findings WHERE evidence -> 'deduction_ids' ? %s
+                                  AND state IN ('open', 'escalated') ORDER BY id LIMIT 1""", (ded["id"],))
+    if hits:
+        found = "; ".join(x.summary for x in hits)
+        if open_case:
+            cur.execute("UPDATE findings SET evidence = evidence || %s::jsonb WHERE id = %s",
+                        (json.dumps({"handoff": {"id": h["id"], "from": h["from_actor"], "proposed": "clear",
+                                                 "returned_because": found}}), open_case["id"]))
+            return finish("returned", reason=f"not cleared: {open_case['control_id']} is still open on it ({found})",
+                          finding_id=open_case["id"])
+        top = hits[0]
+        top.evidence.update(matched="handoff", handoff_id=h["id"], proposed_by=h["from_actor"])
+        top.summary = f"{who} handed {ded['id']} over proposing to clear it; re-checking found: {top.summary}"
+        fid = raise_finding(cur, top, period=run.period, customer_id=ded["customer_id"], at=when,
+                            control=lib[top.control_id])
+        run.judge(fid, when)
+        return finish("returned", reason=f"not cleared: {found}", finding_id=fid)
+    follow_up = authorise(cur, ded, program_id, run.period, when, deferred=run.deferred)
+    run.judge(follow_up, when)
+    if open_case:
+        cur.execute("UPDATE escalations SET answer = %s, answered_at = %s WHERE finding_id = %s AND answered_at IS NULL",
+                    (f"superseded:{h['id']}", when, open_case["id"]))
+        set_finding_state(cur, open_case["id"], "resolved", {"decision": "superseded", "by": "agent", "at": when,
+                                                              "note": f"cleared after re-checking {note}"})
+    finish("completed", reason=f"re-checked against {program_id}: every control passes, cleared"
+                               + (f" (over the accrual: {follow_up})" if follow_up else ""))
+
+
 def run_day(run: Run, d: date) -> None:
     cur = run.cur
     for ret in all_rows(cur, "SELECT * FROM returns WHERE available_at = %s ORDER BY id", (d,)):
@@ -234,6 +299,8 @@ def run_day(run: Run, d: date) -> None:
         on_deduction(run, ded, at(d, DEDUCTIONS_AT))
     for backup in all_rows(cur, "SELECT * FROM claim_backup WHERE available_at = %s ORDER BY id", (d,)):
         on_backup(run, backup, at(d, BACKUP_AT))
+    for h in all_rows(cur, "SELECT * FROM handoffs WHERE sim_date = %s AND status = 'pending' ORDER BY id", (d,)):
+        on_handoff(run, h, at(d, HANDOFFS_AT))
     for ev in all_rows(cur, "SELECT * FROM scripted_events WHERE sim_date = %s ORDER BY id", (d,)):
         run.hooks.on_event(cur, ev, at(d, EVENTS_AT))
 
@@ -388,6 +455,8 @@ def close(run: Run) -> dict:
     # Anything still unjudged — including follow-ups a decision raised mid-month — gets judged now.
     for f in all_rows(cur, "SELECT * FROM findings WHERE state = 'open' AND period <= %s ORDER BY id", (period,)):
         run.hooks.judge(cur, f, at(end, CLOSE_AT))
+    if run.hooks.follow_up:
+        run.log += run.hooks.follow_up(cur, period, at(end, CLOSE_AT))
     states = {}
     for cid in customers:
         set_state(cur, period, cid, "CONTROLLED")

@@ -31,7 +31,7 @@ from tpa.autopilot import PRECEDENT_ANSWERS
 from tpa.constants import Control as C, Prefix, period_of
 from tpa.cycle import MECHANICAL, Hooks, default_judge
 from tpa.execute import _jsonable, execute, finding, next_id, set_finding_state
-from tpa.policy import LOW_CONFIDENCE
+from tpa.policy import CARD_FOLLOW_UP_DAYS, LOW_CONFIDENCE
 from tpa.rows import all_rows, one_row
 from tpa.sod import SegregationOfDutiesError, actor, can_approve, record_block
 
@@ -375,6 +375,30 @@ def settle_siblings(cur: psycopg.Cursor, precedent_id: str, at: datetime) -> lis
     return settled
 
 
+def follow_up(cur: psycopg.Cursor, period: str, at: datetime, *, respond: Respond | None = None) -> list[str]:
+    """At the close: a card unanswered past CARD_FOLLOW_UP_DAYS goes up to the controller, saying who
+    didn't answer, for how long, and that the close is waiting. The controller's own cards stay
+    with her: there is no one above the close, so they are reported, not moved."""
+    log = []
+    for esc in open_escalations(cur):
+        waited = (at - esc["created_at"]).days
+        if waited <= CARD_FOLLOW_UP_DAYS:
+            continue
+        if esc["to_role"] == "controller":
+            log.append(f"{esc['id']} has waited {waited} days on the controller")
+            continue
+        _close(cur, esc["id"], "routed:controller", None, at, None)
+        cur.execute("UPDATE findings SET state = 'open' WHERE id = %s", (esc["finding_id"],))
+        moved = escalate(cur, finding(cur, esc["finding_id"]), at, to_role="controller",
+                         prefix=f"No answer from the {esc['to_role'].replace('_', ' ')} in {waited} days "
+                                f"({esc['id']}); the {period} close is waiting on it. ",
+                         precedent=find_precedent(cur, finding(cur, esc["finding_id"])))
+        log.append(f"{esc['id']} unanswered {waited} days by the {esc['to_role']}: moved to the controller as {moved['id']}")
+        if respond:
+            respond(cur, moved, at)
+    return log
+
+
 def on_event(cur: psycopg.Cursor, event: dict, at: datetime, *, respond: Respond | None = None) -> None:
     """A scripted human action. Approvals go through the capability check like any other."""
     if event["action"] != "approve":
@@ -399,4 +423,4 @@ def hooks(respond: Respond | None = None) -> Hooks:
     for a person (the API) and periods wait for a signature; `tpa.players.hooks()` passes the
     model-played humans and the played close reviewer."""
     return Hooks(judge=partial(judge, respond=respond), on_event=partial(on_event, respond=respond),
-                 approve=partial(request_approval, respond=respond))
+                 approve=partial(request_approval, respond=respond), follow_up=partial(follow_up, respond=respond))

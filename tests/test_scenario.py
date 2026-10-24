@@ -24,7 +24,7 @@ def session():
     ds = build(1337, 24)
     conn = connect()
     reset_schema(conn)
-    load(conn, ds, load_terms=True)
+    load(conn, ds, load_terms=False)
     conn.commit()
     c = TestClient(app)
     for m in ("01", "02", "03"):

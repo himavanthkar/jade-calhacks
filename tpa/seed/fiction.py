@@ -105,8 +105,8 @@ PROGRAMS: list[Program] = [
             *_q(2026, 1), True, date(2025, 12, 11)),
     Program("TP-0232", "KR", "display", D("165000.00"), "lump_sum", "fixed", None,
             *_q(2026, 2), True, date(2025, 12, 11),
-            ambiguity="3.1 Funds are payable per event upon feature in the weekly circular "
-                      "and/or secondary end-cap display."),
+            ambiguity="3.1 Supplier pays $165,000.00 per event, payable upon feature in the weekly "
+                      "circular and/or secondary end-cap display."),
     Program("TP-0233", "KR", "display", D("165000.00"), "lump_sum", "fixed", None,
             *_q(2026, 3), True, date(2025, 12, 11),
             ambiguity="3.4 An event running longer than seven days may be counted as two events."),

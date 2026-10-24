@@ -348,6 +348,6 @@ def reset():
     """Re-seed for a fresh run. Destroys the demo database, so it is off unless TPA_ALLOW_RESET=1."""
     if os.environ.get("TPA_ALLOW_RESET") != "1":
         raise HTTPException(403, "reset is disabled; set TPA_ALLOW_RESET=1")
-    subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24",
-                    "--load-terms"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24"],
+                   check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
     return out({"reset": True})

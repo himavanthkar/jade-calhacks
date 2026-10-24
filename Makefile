@@ -21,13 +21,13 @@ db-reset:
 	uv run python -c "from tpa.db import connect, reset_schema; reset_schema(connect())"
 
 seed:
-	uv run python scripts/seed.py --seed 1337 --months 24 --load-terms
+	uv run python scripts/seed.py --seed 1337 --months 24
 
 test:
 	DATABASE_URL=$${TEST_DATABASE_URL:?set TEST_DATABASE_URL to a scratch database; tests reset it} uv run pytest -q
 
 step:
-	uv run python scripts/step.py
+	uv run python scripts/step.py --inbox
 
 year:
 	uv run python scripts/step.py --reset --through month-12 --autopilot --metrics

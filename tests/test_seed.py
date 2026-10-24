@@ -170,4 +170,4 @@ def test_the_seed_is_byte_for_byte_reproducible():
     """Everyone on seed 1337 holds the same data. If this changes, the fiction changed: say so in the
     commit and tell the team to re-seed, because the answer key and the demo numbers move with it."""
     from tpa.seed.load import fingerprint
-    assert fingerprint(build(1337, 24)) == "72a7f2811d410a9d"
+    assert fingerprint(build(1337, 24)) == "731ff15914136d8f"

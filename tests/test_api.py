@@ -11,7 +11,7 @@ from tpa.seed.load import load, write_files
 @pytest.fixture
 def api(conn, tmp_path, monkeypatch):
     ds = build(1337, 24)
-    load(conn, ds, load_terms=True)
+    load(conn, ds, load_terms=False)
     conn.commit()
     write_files(ds, tmp_path)
     monkeypatch.setattr("tpa.api.ANSWER_KEY", tmp_path / "answer_key.json")

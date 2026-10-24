@@ -27,6 +27,7 @@ from tpa.constants import (
 )
 from tpa.controls import LIBRARY, check_deduction, check_late_return, match_program, root_cause
 from tpa.execute import scan_back_estimate
+from tpa.extract import extract_landed
 from tpa.gates import claim_lag_prior
 from tpa.policy import MATERIALITY_RATE
 from tpa.rows import all_rows, one_row
@@ -203,6 +204,7 @@ def derive_owner(control_id: str, lessons: list[Lesson], threshold: Decimal, rol
 
 def mine(cur: psycopg.Cursor) -> dict:
     """Replay history, mine the controls and write them. Idempotent: replaces mined rows."""
+    read = extract_landed(cur, ONBOARDED_AT.date())     # 1. parse every agreement already here
     roles = {r["id"]: r["role"] for r in all_rows(cur, "SELECT id, role FROM actors")}
     decisions = all_rows(cur, "SELECT * FROM historical_decisions ORDER BY id")
     lessons: dict[str, list[Lesson]] = defaultdict(list)
@@ -238,7 +240,7 @@ def mine(cur: psycopg.Cursor) -> dict:
                  mined_at = EXCLUDED.mined_at""",
             c,
         )
-    return {"controls": mined, "priors": priors, "unexplained_decisions": unexplained,
+    return {"controls": mined, "priors": priors, "unexplained_decisions": unexplained, "documents_read": read,
             "decisions": len(decisions)}
 
 

@@ -28,7 +28,7 @@ import psycopg
 
 from tpa import model, restate
 from tpa.autopilot import PRECEDENT_ANSWERS
-from tpa.constants import Control as C, Prefix, period_of
+from tpa.constants import Control as C, Prefix, period_of, period_start
 from tpa.cycle import MECHANICAL, Hooks, default_judge
 from tpa.execute import _jsonable, execute, finding, next_id, set_finding_state
 from tpa.policy import CARD_FOLLOW_UP_DAYS, LOW_CONFIDENCE
@@ -380,9 +380,12 @@ def follow_up(cur: psycopg.Cursor, period: str, at: datetime, *, respond: Respon
     didn't answer, for how long, and that the close is waiting. The controller's own cards stay
     with her: there is no one above the close, so they are reported, not moved."""
     log = []
+    # A month runs in one step, so a card raised during it has had no one look at it yet: only cards
+    # already waiting when the month began (seen in the inbox between steps) are chased.
+    began = datetime.combine(period_start(period), datetime.min.time())
     for esc in open_escalations(cur):
         waited = (at - esc["created_at"]).days
-        if waited <= CARD_FOLLOW_UP_DAYS:
+        if esc["created_at"] >= began or waited <= CARD_FOLLOW_UP_DAYS:
             continue
         if esc["to_role"] == "controller":
             log.append(f"{esc['id']} has waited {waited} days on the controller")

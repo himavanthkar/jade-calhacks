@@ -39,8 +39,8 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.reset:
-        subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24",
-                        "--load-terms"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24"],
+                       check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
     overrides = players.CONTROLLER_SAYS_NO if args.controller_says_no else None
     hooks = (autopilot.hooks() if args.autopilot else players.hooks(overrides) if args.players
              else judgment.hooks() if args.inbox else Hooks())

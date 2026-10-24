@@ -329,7 +329,7 @@ class Builder:
 
     def program_terms(self) -> list[dict]:
         """Ground-truth extraction of every program. The extractor is scored against this;
-        `seed.py --load-terms` loads it directly as a fallback."""
+        The engine never reads it: tpa.extract reads the documents, and tests compare the two."""
         clause = {"scan_back": "4.2", "off_invoice": "2.1", "mdf": "2.1", "display": "3.1"}
         rows, n = [], itertools.count(1)
 

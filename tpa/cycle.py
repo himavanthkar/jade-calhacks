@@ -8,6 +8,7 @@
 order the business would see them, and the period closes on its last day:
 
   each day   08:00  late returns   → RETURNS-NOT-NETTED, origin accrual re-made net of them
+             09:00  documents      → agreements and amendments that arrived are read into program_terms
              10:00  amendments     → restatement of every accrued period they reach back into
              12:00  deductions     → recorded, matched, row controls, cleared if authorised
              13:00  late backup    → a claim held for missing backup is re-checked, and cleared if it passes
@@ -42,6 +43,7 @@ from tpa.execute import (
     accrual_posted, authorise, controls, execute, finding, raise_finding, record_deduction, scan_back_estimate,
     dispute, segments_memo, set_finding_state, unresolved_amount, withdraw_dispute,
 )
+from tpa.extract import extract_landed, log_line
 from tpa.flux import write_flux
 from tpa.review import write_review
 from tpa.gates import GateFailure, no_stale_accruals, run_gates, sign_period
@@ -292,6 +294,7 @@ def run_day(run: Run, d: date) -> None:
     cur = run.cur
     for ret in all_rows(cur, "SELECT * FROM returns WHERE available_at = %s ORDER BY id", (d,)):
         on_return(run, ret, at(d, RETURNS_AT))
+    run.log += [log_line(r) for r in extract_landed(cur, d)]         # 09:00, before amendments are acted on
     for am in all_rows(cur, "SELECT * FROM program_amendments WHERE available_at = %s ORDER BY id", (d,)):
         fid = on_amendment(cur, am, run.period, at(d, AMENDMENTS_AT), run.hooks.approve)
         run.log.append(f"{am['id']} landed: restatement finding {fid}")

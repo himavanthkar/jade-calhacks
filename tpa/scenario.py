@@ -144,8 +144,8 @@ def _return(cur, p: dict, d: date, made: list[str]) -> None:
 
 
 def _amendment(cur, p: dict, d: date, made: list[str]) -> None:
-    """A signed change of rate that reaches us today. Its terms are structured from the payload
-    directly (as `--load-terms` does for the seed): the extractor is not in the loop."""
+    """A signed change of rate that reaches us today, as a document. The engine reads it into terms
+    (tpa.extract) on the day it lands, exactly as it reads AM-02: nothing here writes a term."""
     _need(p, "program_id", "new_rate", "effective_date")
     program = one_row(cur, "SELECT * FROM trade_programs WHERE id = %s", (p["program_id"],))
     if program is None:
@@ -155,8 +155,7 @@ def _amendment(cur, p: dict, d: date, made: list[str]) -> None:
     effective = _date(p["effective_date"], "effective_date")
     if effective >= d:
         raise ScenarioError("effective_date must be before the day it lands, or there is nothing to restate")
-    learned = datetime.combine(d, time(9))           # an hour before the engine reads amendments
-    term = terms_as_of(cur, program["id"], effective, learned)
+    term = terms_as_of(cur, program["id"], effective, datetime.combine(d, time(8)))
     if term is None or not term["window_start"] <= effective <= term["window_end"]:
         raise ScenarioError(f"{effective} is outside {program['id']}'s window")
     new_rate = _money(p["new_rate"], "new_rate")
@@ -165,24 +164,11 @@ def _amendment(cur, p: dict, d: date, made: list[str]) -> None:
     signed = _date(p["signed_date"], "signed_date") if p.get("signed_date") else effective - timedelta(days=2)
     am_id = _id(cur, "program_amendments", "AM", 2)
     doc = (f"AMENDMENT {am_id} TO TRADE PROMOTION AGREEMENT {program['id']}\nSigned {signed.isoformat()}.\n\n"
-           f"4.2 Effective {effective.isoformat()}, the scan-back rate is ${new_rate} per case.")
+           f"Clause 4.2 is replaced in full, effective {effective.isoformat()}:\n"
+           f"4.2 The allowance is ${new_rate} per case-equivalent unit scanned.\nAll other terms are unchanged.\n")
     cur.execute("""INSERT INTO program_amendments (id, program_id, document_text, effective_date, signed_date, available_at)
                    VALUES (%s, %s, %s, %s, %s, %s)""", (am_id, program["id"], doc, effective, signed, d))
-    cols = ("program_id", "customer_id", "program_type", "rate_unit", "base_definition", "projected_redemption",
-            "window_start", "window_end", "requires_proof")
-    base = {c: term[c] for c in cols}
-    for valid_from, valid_to, rate_, amendment, clause in (
-            (term["valid_from"], effective - timedelta(days=1), term["rate"], term["amendment_id"], term["source_clause_id"]),
-            (effective, term["valid_to"], new_rate, am_id, f"{am_id}#4.2")):
-        if valid_to is not None and valid_to < valid_from:
-            continue
-        pt = _id(cur, "program_terms", "PT", 4)
-        cur.execute(f"""INSERT INTO program_terms (id, {', '.join(cols)}, rate, source_clause_id, amendment_id, valid_from,
-                                                   valid_to, decision_time)
-                        VALUES (%s, {', '.join(['%s'] * len(cols))}, %s, %s, %s, %s, %s, %s)""",
-                    (pt, *base.values(), rate_, clause, amendment, valid_from, valid_to, learned))
-        made.append(pt)
-    made.insert(0, am_id)
+    made.append(am_id)
 
 
 def _approval_attempt(cur, p: dict, d: date, made: list[str]) -> None:

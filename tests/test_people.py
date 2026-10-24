@@ -18,7 +18,7 @@ def february():
     os.environ["TPA_HUMANS"] = "inbox"
     conn = connect()
     reset_schema(conn)
-    load(conn, build(1337, 24), load_terms=True)
+    load(conn, build(1337, 24), load_terms=False)
     conn.commit()
     c = TestClient(app)
     c.post("/api/period/2026-01/step").raise_for_status()

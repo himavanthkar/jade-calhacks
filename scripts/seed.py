@@ -26,7 +26,8 @@ def main() -> None:
     ap.add_argument("--out-dir", type=Path, default=Path("data"))
     ap.add_argument("--no-db", action="store_true", help="only write the answer key files")
     ap.add_argument("--load-terms", action="store_true",
-                    help="load ground-truth program_terms instead of leaving them to the extractor")
+                    help="tests of the ledger alone: load the extractor's answer key as program_terms. The engine "
+                         "never needs it; it reads the agreements itself (tpa.extract)")
     args = ap.parse_args()
 
     ds = build(args.seed, args.months)

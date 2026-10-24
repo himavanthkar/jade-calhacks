@@ -37,7 +37,7 @@ def run_all(ds, hooks, through: str = "2026-12") -> psycopg.Connection:
     so reads never hold a lock that the next schema reset would wait on."""
     conn = connect()
     reset_schema(conn)
-    load(conn, ds, load_terms=True)
+    load(conn, ds, load_terms=False)
     run_through(conn, through, hooks)
     conn.autocommit = True
     return conn
@@ -102,7 +102,7 @@ def test_the_engine_alone_never_approves_or_signs(engine_alone):
 def test_miner_finds_every_control_history_can_teach(ds):
     conn = connect()
     reset_schema(conn)
-    load(conn, ds, load_terms=True)
+    load(conn, ds, load_terms=False)
     with conn.cursor() as cur:
         out = mine(cur)
     conn.close()

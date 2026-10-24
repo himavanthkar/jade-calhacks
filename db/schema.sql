@@ -1,0 +1,390 @@
+-- Trade Promotion Autonomy — full DDL.
+--
+-- Conventions
+--   * period         'YYYY-MM' text. History = 2025-01..2025-12, live year = 2026-01..2026-12.
+--   * available_at   the simulated date a source row lands in our systems. The month
+--                    stepper only ever shows rows with available_at <= the sim date.
+--   * valid_time     when a fact was true in the world.
+--   * decision_time  when we learned it / posted it (simulated clock, never now()).
+--   * Money is NUMERIC(14,2); rates NUMERIC(12,6). No floats anywhere.
+--   * The ledger is insert-only. Corrections are new rows with a later decision_time.
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Simulation clock and actors
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE sim_clock (
+  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),     -- single row
+  current_period TEXT NOT NULL,
+  sim_date DATE NOT NULL
+);
+
+CREATE TABLE actors (
+  id TEXT PRIMARY KEY,                -- e.g. 'sales.walmart', 'controller'
+  name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN (
+    'sales_lead', 'customer_team_analyst', 'controller', 'close_reviewer',
+    'trade_promotion_accountant', 'deduction_analyst', 'agent')),
+  customer_id TEXT                    -- set for customer-facing roles
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 0: the source systems
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE customers (
+  id TEXT PRIMARY KEY,                -- 'WMT', 'COST', 'KR'
+  name TEXT NOT NULL,
+  channel TEXT NOT NULL
+);
+
+CREATE TABLE trade_programs (
+  id TEXT PRIMARY KEY,                -- 'TP-0214'
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  document_text TEXT NOT NULL,
+  program_type TEXT NOT NULL CHECK (program_type IN ('off_invoice', 'scan_back', 'display', 'mdf')),
+  signed_date DATE NOT NULL,
+  negotiated_by TEXT NOT NULL REFERENCES actors(id),   -- SoD hinges on this
+  available_at DATE NOT NULL
+);
+
+-- Amendments arrive as their own documents. effective_date can sit inside a
+-- period that is already closed by the time available_at comes round: that gap
+-- is what triggers restatement.
+CREATE TABLE program_amendments (
+  id TEXT PRIMARY KEY,                -- 'AM-02'
+  program_id TEXT NOT NULL REFERENCES trade_programs(id),
+  document_text TEXT NOT NULL,
+  effective_date DATE NOT NULL,       -- valid time
+  signed_date DATE NOT NULL,
+  available_at DATE NOT NULL          -- when it reaches us
+);
+
+CREATE TABLE shipments (
+  id TEXT PRIMARY KEY,                -- 'SH-0412'
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  program_id TEXT REFERENCES trade_programs(id),       -- null = unpromoted volume
+  period TEXT NOT NULL,
+  cases INT NOT NULL CHECK (cases >= 0),
+  gross_price NUMERIC(12,4) NOT NULL,                  -- per case
+  ship_date DATE NOT NULL,
+  available_at DATE NOT NULL
+);
+
+-- Returns are their own rows because they can reach us after the shipment's
+-- period was accrued: promoted volume has to be netted late.
+CREATE TABLE returns (
+  id TEXT PRIMARY KEY,
+  shipment_id TEXT NOT NULL REFERENCES shipments(id),
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  cases INT NOT NULL CHECK (cases > 0),
+  return_date DATE NOT NULL,
+  available_at DATE NOT NULL
+);
+
+CREATE TABLE invoices (
+  id TEXT PRIMARY KEY,                -- 'INV-…'
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  shipment_id TEXT REFERENCES shipments(id),
+  period TEXT NOT NULL,
+  gross_amount NUMERIC(14,2) NOT NULL,
+  off_invoice_amount NUMERIC(14,2) NOT NULL DEFAULT 0, -- allowance taken at invoice
+  invoice_date DATE NOT NULL,
+  available_at DATE NOT NULL
+);
+
+CREATE TABLE deductions (
+  id TEXT PRIMARY KEY,                -- 'DD-3391'
+  invoice_id TEXT REFERENCES invoices(id),
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  program_id TEXT REFERENCES trade_programs(id),       -- often null: the matching problem
+  amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+  reason_code TEXT NOT NULL,
+  claimed_rate NUMERIC(12,6),                          -- rate the customer says applies
+  taken_date DATE NOT NULL,                            -- months after the promo period
+  claimed_period TEXT NOT NULL,                        -- the period the customer says it relates to
+  claim_start DATE,                                    -- the activity dates the claim covers
+  claim_end DATE,
+  cleared_by TEXT REFERENCES actors(id),
+  approved_by TEXT REFERENCES actors(id),
+  available_at DATE NOT NULL,
+  CHECK (cleared_by IS NULL OR approved_by IS NULL OR cleared_by <> approved_by)
+);
+
+CREATE TABLE claim_backup (
+  id TEXT PRIMARY KEY,
+  deduction_id TEXT NOT NULL REFERENCES deductions(id),
+  scan_units INT,
+  scan_rate NUMERIC(12,6),
+  proof_of_performance BOOLEAN NOT NULL DEFAULT FALSE,
+  notes TEXT,                                          -- the retailer's own words, verbatim
+  received_date DATE NOT NULL,
+  available_at DATE NOT NULL
+);
+
+CREATE TABLE disputes (
+  id TEXT PRIMARY KEY,
+  deduction_id TEXT NOT NULL REFERENCES deductions(id),
+  disputed_amount NUMERIC(14,2) NOT NULL,
+  raised_date DATE NOT NULL,
+  resolution TEXT CHECK (resolution IN ('upheld', 'recovered', 'partial')),
+  resolved_date DATE,
+  resolution_amount NUMERIC(14,2),
+  available_at DATE NOT NULL          -- when the resolution reaches us
+);
+
+-- What the humans actually did during the history year. Onboarding diffs its
+-- deterministic replay against this; every mined control cites rows from here.
+CREATE TABLE historical_decisions (
+  id TEXT PRIMARY KEY,                -- 'HD-…'
+  period TEXT NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  subject_type TEXT NOT NULL CHECK (subject_type IN (
+    'deduction', 'accrual', 'shipment', 'claim_backup', 'dispute')),
+  subject_id TEXT NOT NULL,
+  action TEXT NOT NULL CHECK (action IN (
+    'accept_variance', 'adjust', 'reverse_claim', 'recover', 'write_off',
+    'escalate', 'release_stale_accrual')),
+  amount NUMERIC(14,2),
+  variance_pct NUMERIC(12,6),
+  reason TEXT NOT NULL,
+  decided_by TEXT NOT NULL REFERENCES actors(id),
+  decided_at TIMESTAMP NOT NULL,
+  journal_id TEXT                     -- the ledger journal it produced, if any
+);
+
+-- Things the model-played humans will try to do on a given simulated date,
+-- e.g. a sales lead approving a claim on their own program.
+CREATE TABLE scripted_events (
+  id TEXT PRIMARY KEY,                -- 'EV-…'
+  sim_date DATE NOT NULL,
+  actor_id TEXT NOT NULL REFERENCES actors(id),
+  action TEXT NOT NULL,               -- 'approve'
+  target_type TEXT NOT NULL,          -- 'deduction' | 'restatement'
+  target_id TEXT NOT NULL,
+  note TEXT
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 1: the context graph
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE program_terms (
+  id TEXT PRIMARY KEY,
+  program_id TEXT NOT NULL REFERENCES trade_programs(id),
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  program_type TEXT NOT NULL CHECK (program_type IN ('off_invoice', 'scan_back', 'display', 'mdf')),
+  rate NUMERIC(16,6) NOT NULL,      -- per case, or the lump sum for mdf/display
+  rate_unit TEXT NOT NULL CHECK (rate_unit IN ('per_case', 'pct_of_gross', 'lump_sum')),
+  base_definition TEXT NOT NULL CHECK (base_definition IN ('shipped_cases', 'scan_units', 'gross_sales', 'fixed')),
+  projected_redemption NUMERIC(12,6),  -- scan-back: expected sell-through. The estimate.
+  window_start DATE NOT NULL,
+  window_end DATE NOT NULL,
+  requires_proof BOOLEAN NOT NULL DEFAULT FALSE,
+  source_clause_id TEXT,               -- e.g. 'TP-0214#4.2'
+  amendment_id TEXT REFERENCES program_amendments(id),
+  valid_from DATE NOT NULL,
+  valid_to DATE,                       -- null = open-ended
+  decision_time TIMESTAMP NOT NULL,    -- when WE learned this term existed
+  CHECK (window_end >= window_start),
+  CHECK (valid_to IS NULL OR valid_to >= valid_from)
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 2: the controls library
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE controls (
+  id TEXT PRIMARY KEY,                -- stable slug, e.g. 'CTL-DED-GT-ACCRUAL'
+  name TEXT NOT NULL,
+  condition TEXT NOT NULL,            -- an evaluable expression, not prose
+  threshold NUMERIC(14,6),
+  threshold_unit TEXT CHECK (threshold_unit IN ('usd', 'pct', 'periods')),
+  owner_role TEXT NOT NULL,           -- who this escalates to
+  precedent_ids TEXT[] NOT NULL DEFAULT '{}',   -- historical_decisions that taught it
+  mined_at TIMESTAMP NOT NULL,
+  learned BOOLEAN NOT NULL DEFAULT FALSE,       -- added after onboarding
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retired', 'tuned'))
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 3: judgment
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE findings (
+  id TEXT PRIMARY KEY,
+  period TEXT NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  control_id TEXT NOT NULL REFERENCES controls(id),
+  severity TEXT NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+  amount NUMERIC(14,2),
+  exposure NUMERIC(14,2),             -- dollars at risk, drives escalation lane
+  confidence NUMERIC(5,4),            -- below threshold → low_confidence escalation
+  state TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'auto_resolved', 'escalated', 'resolved')),
+  escalation_type TEXT CHECK (escalation_type IN ('authority', 'source_conflict', 'low_confidence', 'sod')),
+  conflict_type TEXT,                 -- precedent match key
+  evidence JSONB NOT NULL DEFAULT '{}',   -- ids of every row that triggered it
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE escalations (
+  id TEXT PRIMARY KEY,
+  finding_id TEXT NOT NULL REFERENCES findings(id),
+  to_role TEXT NOT NULL,
+  question TEXT NOT NULL,
+  options JSONB NOT NULL DEFAULT '[]',
+  answer TEXT,
+  answered_by TEXT REFERENCES actors(id),
+  answered_at TIMESTAMP,
+  became_precedent_id TEXT,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE precedents (
+  id TEXT PRIMARY KEY,
+  control_id TEXT NOT NULL REFERENCES controls(id),
+  conflict_type TEXT NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  decision TEXT NOT NULL,             -- which source won, or approve | reject
+  reasoning TEXT NOT NULL,            -- rejections carry reasoning
+  decided_by TEXT NOT NULL REFERENCES actors(id),
+  decided_at TIMESTAMP NOT NULL,
+  from_escalation_id TEXT REFERENCES escalations(id)
+);
+
+ALTER TABLE escalations
+  ADD CONSTRAINT escalations_precedent_fk
+  FOREIGN KEY (became_precedent_id) REFERENCES precedents(id) DEFERRABLE INITIALLY DEFERRED;
+
+CREATE INDEX precedents_match_idx ON precedents (control_id, conflict_type, customer_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 4: the bitemporal ledger
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- One row per period per customer: the cycle runs per customer, and a period is
+-- closed for sign-off when every customer row for it is SIGNED.
+CREATE TABLE periods (
+  period TEXT NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  state TEXT NOT NULL DEFAULT 'OPEN' CHECK (state IN (
+    'OPEN', 'ACCRUED', 'CONTROLLED', 'ESCALATED', 'REVIEWED', 'SIGNED', 'CLOSED', 'RESTATED')),
+  signed_by TEXT REFERENCES actors(id),
+  signed_at TIMESTAMP,
+  gate_results JSONB NOT NULL DEFAULT '{}',
+  PRIMARY KEY (period, customer_id)
+);
+
+CREATE TABLE ledger_entries (
+  id TEXT PRIMARY KEY,                -- 'JE-1184-1' (journal id + line number)
+  journal_id TEXT NOT NULL,           -- 'JE-1184'; debits = credits per journal
+  entry_type TEXT NOT NULL CHECK (entry_type IN (
+    'opening', 'revenue', 'accrual', 'reversal', 'clearing', 'dispute', 'restatement', 'adjustment')),
+  period TEXT NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  program_id TEXT REFERENCES trade_programs(id),
+  account TEXT NOT NULL,
+  debit NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (debit >= 0),
+  credit NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (credit >= 0),
+  memo TEXT,
+  reversal_of TEXT REFERENCES ledger_entries(id),   -- the accrual line this reverses
+  restates TEXT REFERENCES ledger_entries(id),      -- the line this restates
+  source_finding_id TEXT REFERENCES findings(id),
+  valid_time DATE NOT NULL,           -- the period it belongs to
+  decision_time TIMESTAMP NOT NULL,   -- when we knew it
+  approved_by TEXT REFERENCES actors(id),
+  CHECK ((debit = 0) <> (credit = 0))  -- exactly one side per line
+);
+
+CREATE SEQUENCE journal_seq START 1000;   -- JE-1000, JE-1001, … allocated by tpa.ledger.post_journal
+
+CREATE INDEX ledger_asof_idx ON ledger_entries (period, decision_time);
+CREATE INDEX ledger_program_idx ON ledger_entries (program_id, period);
+CREATE INDEX ledger_journal_idx ON ledger_entries (journal_id);
+
+CREATE TABLE flux_commentary (
+  id TEXT PRIMARY KEY,
+  period TEXT NOT NULL,
+  account TEXT NOT NULL,
+  current_balance NUMERIC(14,2) NOT NULL,
+  prior_balance NUMERIC(14,2) NOT NULL,
+  pct_change NUMERIC(12,6),
+  narrative TEXT NOT NULL,
+  driver_entry_ids TEXT[] NOT NULL DEFAULT '{}',
+  decision_time TIMESTAMP NOT NULL,
+  approved_by TEXT REFERENCES actors(id),
+  approved_at TIMESTAMP
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Ledger guarantees, enforced by the database rather than by convention
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- 1. Insert-only.
+CREATE FUNCTION ledger_forbid_mutation() RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'ledger_entries is insert-only (% rejected); post a reversing or restating entry instead', TG_OP;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER ledger_no_update_delete
+  BEFORE UPDATE OR DELETE ON ledger_entries
+  FOR EACH ROW EXECUTE FUNCTION ledger_forbid_mutation();
+
+CREATE TRIGGER ledger_no_truncate
+  BEFORE TRUNCATE ON ledger_entries
+  FOR EACH STATEMENT EXECUTE FUNCTION ledger_forbid_mutation();
+
+-- 2. Signed and closed periods only accept restating entries.
+CREATE FUNCTION ledger_check_period_open() RETURNS trigger AS $$
+DECLARE
+  s TEXT;
+BEGIN
+  SELECT state INTO s FROM periods
+   WHERE period = NEW.period AND customer_id = NEW.customer_id;
+  IF s IN ('SIGNED', 'CLOSED') AND NEW.restates IS NULL THEN
+    RAISE EXCEPTION 'period % for % is %; only restating entries may be written to it',
+      NEW.period, NEW.customer_id, s;
+  END IF;
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER ledger_period_lock
+  BEFORE INSERT ON ledger_entries
+  FOR EACH ROW EXECUTE FUNCTION ledger_check_period_open();
+
+-- 3. Debits equal credits per journal, checked at commit so a journal's lines
+--    can be inserted one at a time inside a transaction.
+CREATE FUNCTION ledger_check_journal_balanced() RETURNS trigger AS $$
+DECLARE
+  d NUMERIC;
+  c NUMERIC;
+BEGIN
+  SELECT COALESCE(SUM(debit), 0), COALESCE(SUM(credit), 0) INTO d, c
+    FROM ledger_entries WHERE journal_id = NEW.journal_id;
+  IF d <> c THEN
+    RAISE EXCEPTION 'journal % does not balance: debits % <> credits %', NEW.journal_id, d, c;
+  END IF;
+  RETURN NULL;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER ledger_journal_balanced
+  AFTER INSERT ON ledger_entries
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION ledger_check_journal_balanced();
+
+-- 4. Signed periods cannot be quietly unsigned or edited back to OPEN.
+CREATE FUNCTION periods_check_transition() RETURNS trigger AS $$
+BEGIN
+  IF OLD.state IN ('SIGNED', 'CLOSED') AND NEW.state NOT IN ('SIGNED', 'CLOSED', 'RESTATED') THEN
+    RAISE EXCEPTION 'period % for % is %; it can only move to RESTATED', OLD.period, OLD.customer_id, OLD.state;
+  END IF;
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER periods_transition_guard
+  BEFORE UPDATE ON periods
+  FOR EACH ROW EXECUTE FUNCTION periods_check_transition();

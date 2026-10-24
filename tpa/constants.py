@@ -123,6 +123,8 @@ class Control:
         DUPLICATE_DEDUCTION, RETURNS_NOT_NETTED, NO_PROOF, PERIOD_STRADDLE, RATE_CONFLICT,
         WRITEOFF_AUTHORITY, REDEMPTION_DRIFT,
     )
+    # A capability check in code, not a mined rule, so it sits outside ALL.
+    SOD = "CTL-SOD"                                  # approver negotiated the program the claim arises from
 
 ESCALATION_TYPES = ("authority", "source_conflict", "low_confidence", "sod")
 FINDING_STATES = ("open", "auto_resolved", "escalated", "resolved")

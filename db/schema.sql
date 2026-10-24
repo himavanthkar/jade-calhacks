@@ -249,6 +249,7 @@ CREATE TABLE precedents (
   reasoning TEXT NOT NULL,            -- rejections carry reasoning
   decided_by TEXT NOT NULL REFERENCES actors(id),
   decided_at TIMESTAMP NOT NULL,
+  exposure_limit NUMERIC(14,2),       -- authority decisions apply silently only up to the exposure decided on
   from_escalation_id TEXT REFERENCES escalations(id)
 );
 

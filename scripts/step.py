@@ -5,7 +5,9 @@
     uv run python scripts/step.py --reset --through month-12 --autopilot --metrics
 
 --reset re-seeds first (same as `make seed`). --autopilot answers escalations the way last
-year's humans did (tpa.autopilot) instead of leaving them for workstream C.
+year's humans did (tpa.autopilot), bypassing judgment. --players runs the judgment engine
+with the model-played humans answering its cards (tpa.players; TPA_USE_MODEL=1 for Claude).
+--inbox runs the judgment engine and leaves every card waiting for a person.
 """
 
 import argparse
@@ -17,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from tpa import autopilot  # noqa: E402
+from tpa import autopilot, judgment, players  # noqa: E402
 from tpa.asof import sim_clock  # noqa: E402
 from tpa.cycle import Hooks, run_through, step  # noqa: E402
 from tpa.db import connect  # noqa: E402
@@ -29,13 +31,16 @@ def main() -> None:
     ap.add_argument("--through", help="'2026-09' or 'month-9'; default: one month")
     ap.add_argument("--reset", action="store_true", help="re-seed the database first")
     ap.add_argument("--autopilot", action="store_true", help="stand-in humans answer escalations")
+    ap.add_argument("--players", action="store_true", help="judgment engine, model-played humans answer")
+    ap.add_argument("--inbox", action="store_true", help="judgment engine, cards wait for a person")
     ap.add_argument("--metrics", action="store_true", help="print precision/recall/escalation/autonomy after")
     args = ap.parse_args()
 
     if args.reset:
         subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24",
                         "--load-terms"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
-    hooks = autopilot.hooks() if args.autopilot else Hooks()
+    hooks = (autopilot.hooks() if args.autopilot else players.hooks() if args.players
+             else judgment.hooks() if args.inbox else Hooks())
     conn = connect()
     summaries = run_through(conn, args.through, hooks) if args.through else [step(conn, hooks)]
     for s in summaries:

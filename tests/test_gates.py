@@ -81,6 +81,78 @@ def test_claim_without_terms_is_unverifiable(base):
     assert not g.passed and "cannot verify" in g.violations[0]["reason"]
 
 
+def dispute(cur, period, amount, origin_end, decided, deduction_id=None):
+    a = Decimal(amount)
+    return post_journal(
+        cur, entry_type="dispute", period=period, customer_id="WMT", program_id="TP-0214", decision_time=decided,
+        lines=[Line(Account.DISPUTE_RECEIVABLE, debit=a, valid_time=origin_end, deduction_id=deduction_id),
+               Line(Account.DEDUCTIONS_PENDING, credit=a, valid_time=origin_end, deduction_id=deduction_id)])
+
+
+def claim_dates(cur, ded_id, start, end):
+    cur.execute("UPDATE deductions SET claim_start = %s, claim_end = %s WHERE id = %s", (start, end, ded_id))
+
+
+def test_disputed_claim_counts_as_arrived(base):
+    with base.cursor() as cur:
+        accrue(cur, "2026-02", "100.00", datetime(2026, 2, 28))
+        deduction(cur, "DD-1", "2026-02")
+        dispute(cur, "2026-05", "100.00", FEB_END, datetime(2026, 5, 20), "DD-1")
+        assert not run_gates(cur, "2026-05", "WMT", datetime(2026, 5, 10))["no_stale_accruals"].passed
+        assert run_gates(cur, "2026-05", "WMT", datetime(2026, 5, 31))["no_stale_accruals"].passed
+
+
+def test_dispute_without_a_deduction_does_not_count(base):
+    with base.cursor() as cur:
+        accrue(cur, "2026-02", "100.00", datetime(2026, 2, 28))
+        dispute(cur, "2026-03", "100.00", FEB_END, datetime(2026, 3, 20))
+        assert not gate(cur, "no_stale_accruals", "2026-05").passed
+
+
+def test_allocated_claim_inside_window_passes(base):
+    with base.cursor() as cur:
+        terms(cur, valid_from=date(2025, 1, 1))
+        deduction(cur, "DD-1", "2026-01")
+        claim_dates(cur, "DD-1", date(2026, 1, 20), date(2026, 2, 10))
+        clear(cur, "2026-03", "60.00", date(2026, 1, 31), datetime(2026, 3, 20), "DD-1")
+        clear(cur, "2026-03", "40.00", FEB_END, datetime(2026, 3, 20), "DD-1")
+        assert gate(cur, "claims_inside_window", "2026-03").passed
+
+
+def test_allocated_share_outside_window_fails(base):
+    with base.cursor() as cur:
+        terms(cur, valid_from=date(2025, 1, 1))
+        deduction(cur, "DD-1", "2026-01")
+        claim_dates(cur, "DD-1", date(2025, 12, 20), date(2026, 1, 10))
+        clear(cur, "2026-03", "60.00", date(2025, 12, 31), datetime(2026, 3, 20), "DD-1")
+        clear(cur, "2026-03", "40.00", date(2026, 1, 31), datetime(2026, 3, 20), "DD-1")
+        g = gate(cur, "claims_inside_window", "2026-03")
+    assert [(v["deduction_id"], v["claimed_period"]) for v in g.violations] == [("DD-1", "2025-12")]
+
+
+def test_share_cleared_outside_the_claimed_dates_fails(base):
+    with base.cursor() as cur:
+        terms(cur, valid_from=date(2025, 1, 1))
+        deduction(cur, "DD-1", "2026-01")
+        claim_dates(cur, "DD-1", date(2026, 1, 20), date(2026, 1, 31))
+        clear(cur, "2026-04", "60.00", date(2026, 1, 31), datetime(2026, 4, 20), "DD-1")
+        clear(cur, "2026-04", "40.00", date(2026, 3, 31), datetime(2026, 4, 20), "DD-1")
+        g = gate(cur, "claims_inside_window", "2026-04")
+    assert [v["reason"] for v in g.violations] == ["cleared against an origin outside the claimed dates"]
+
+
+def test_window_gate_ignores_later_allocations(base):
+    with base.cursor() as cur:
+        terms(cur, valid_from=date(2025, 1, 1))
+        deduction(cur, "DD-1", "2026-01")
+        claim_dates(cur, "DD-1", date(2025, 12, 20), date(2026, 1, 10))
+        clear(cur, "2026-02", "40.00", date(2026, 1, 31), datetime(2026, 2, 10), "DD-1")
+        then = datetime(2026, 2, 15)
+        before = run_gates(cur, "2026-02", "WMT", then)["claims_inside_window"].passed
+        clear(cur, "2026-02", "60.00", date(2025, 12, 31), datetime(2026, 2, 20), "DD-1")
+        assert run_gates(cur, "2026-02", "WMT", then)["claims_inside_window"].passed == before is False
+
+
 def test_reversal_must_mirror_and_happen_once(base):
     with base.cursor() as cur:
         j = accrue(cur, "2026-02", "100.00", datetime(2026, 2, 28))

@@ -1,98 +1,260 @@
-# jade-calhacks
-ip
+# Trade Promotion Autonomy
 
-Trade promotion autonomy — Cal Hacks 13.0, Hyphenate track. See `spec.md`.
+**Cal Hacks 13.0 · Hyphenate track.** An autonomous system for General Mills' trade promotion books.
 
-## Setup
+**Seats it fills:** the trade promotion accountant and the deduction analyst. It accrues what General Mills
+owes retailers when product ships, matches the deductions retailers take months later, clears what the
+agreement supports, disputes what it doesn't, restates closed months when terms change, and packages the
+close for a person to sign. It asks a person only when the agreement can't settle the question, and an
+answer, once given, is reused.
+
+**The moment.** In August an amendment arrives: Walmart's scan-back rate on TP-0214 went from $3.80 to
+$4.20 a case back in February, and nobody entered it. Every accrual since was booked low. The system finds
+the gap on its own ($1,391,636.52 across six closed months), proposes the restatement, blocks the Walmart
+sales lead who negotiated the deal from approving it, posts it once the controller approves, and keeps
+both answers: what February looked like on what was known then, and what it looks like now.
+
+Build spec: [`spec.md`](spec.md). Data: [`DATA.md`](DATA.md). Rules every change follows: [`AGENTS.md`](AGENTS.md).
+
+## Quick start
 
 ```sh
-make db-up      # Postgres 16 on localhost:5433 (docker compose, or docker run without it)
-make db-scratch # tpa_scratch, the database tests reset
+cp .env.example .env    # then set TEST_DATABASE_URL; ANTHROPIC_API_KEY is optional
+make db-up              # Postgres 16 on localhost:5433
+make db-scratch         # tpa_scratch, the database tests reset
 uv sync
-make db-reset   # drop and apply db/schema.sql
-make seed       # reset, generate 24 months, load, write data/answer_key.json
-make test
-uv run python scripts/evaluate.py --as-of month-1 --as-of month-9
-make step       # run the next live month
-make year       # re-seed, run all twelve with stand-in humans, print the metrics
-make api        # the HTTP API on :8000 for the UI (frontend's Vite proxy points here)
-make says-no    # the same, with the controller overruling the agent on Walmart's quarter-straddling claims
-make players    # same, through the judgment engine with the model-played humans (TPA_USE_MODEL=1 for Claude)
+make seed               # 24 months of books, fingerprint 731ff15914136d8f
+make players            # run the live year with the played humans, print the scores
+make api                # the HTTP API on :8000 for the UI
+make test               # 129 tests, against TEST_DATABASE_URL only
 ```
 
-Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `TPA_USE_MODEL=1` turns on Claude for the played humans and card drafting; nothing needs it. `DATABASE_URL` overrides the default `postgresql://tpa:tpa@localhost:5433/tpa`. Tests reset the schema, so `make test` runs only against `TEST_DATABASE_URL`.
+| Command | What it shows |
+|---|---|
+| `make players` | the year end to end: judgment engine, played humans, scores and "answers that stuck" |
+| `make says-no` | the same, with the controller overruling the agent on Walmart's quarter-straddling claims |
+| `make year` | last year's answers applied directly, no judgment engine (a baseline) |
+| `make step` | one month at a time, cards left for a person (`TPA_HUMANS=inbox`) |
+| `uv run python scripts/evaluate.py --as-of month-1 --as-of month-12` | precision, recall, escalation rate, autonomy |
+| `uv run python scripts/export.py --period 2026-02 --as-of month-2` | February as Excel-checkable CSVs (try `--as-of month-8` too) |
+| `uv run python scripts/pull_10k.py` | re-read General Mills' 10-K figures from SEC EDGAR (needs `SEC_USER_AGENT`) |
 
-## Layout
+## Architecture
 
-- `db/schema.sql` — the full DDL. Ledger guarantees (insert-only, balanced journals, signed-period lock) are enforced by triggers.
-- `tpa/constants.py` — calendar, chart of accounts, ID prefixes, enums. Import these instead of writing string literals.
-- `tpa/db.py` — connection and schema reset.
-- `tpa/ledger.py` — `post_journal`, the only write path into the ledger, plus `reverse_lines` and `post_catch_up` (restatement). The module docstring is the posting contract.
-- `tpa/asof.py` — `balances_as_of` (the spec's one query), `entries_as_of`, `entry_history` (the interrogation chain), `terms_as_of`, `landed` (source rows visible by sim date).
-- `tpa/gates.py` — the five verifiability gates and `sign_period`, which refuses to sign a period that fails one.
-- `tpa/evaluate.py` — precision, recall, escalation rate and autonomy against the answer key; `scripts/evaluate.py` prints them.
-- `tpa/accrual.py` — the accrual math, pure functions: scan-back segments by rate, fixed funds, the restatement delta, how thresholds get rounded.
-- `tpa/controls.py` — the controls library: one check per control, shared by the onboarding replay and the live cycle. Checks return `Hit`s; only those over the mined threshold become findings.
-- `tpa/onboarding.py` — replays the history year, classifies every prior human decision by the check that fires on it, and mines thresholds, owners and precedent ids into `controls`. Also derives priors (claim lag, dispute and backup rates, materiality).
-- `tpa/cycle.py` — the monthly engine. `step(conn, hooks)` runs one month: day by day (late returns, amendments, deductions, scripted human actions), then the close (revenue, accruals, gates, sign-off, flux). The period state machine lives here.
-- `tpa/restate.py` — restatement: when an amendment's valid time reaches into accrued periods, propose a catch-up per period, raise it for the controller, post through `post_catch_up` once approved, and withdraw any dispute the old terms led us to raise.
-- `tpa/execute.py` — every posting a decision can lead to (clear, dispute, top-up, re-estimate, release). `execute(cur, finding_id, decision, decided_by, at)` is how an answered escalation turns into journals.
-- `tpa/flux.py` — flux commentary for accounts over materiality, every number a sum of named journal lines.
-- `tpa/autopilot.py` — stand-in humans that answer as last year's did, for running the year end to end before the model-played roles land. `scripts/step.py --autopilot`.
-- `tpa/judgment.py` — the judgment engine (`judgment.hooks()`): mechanical controls go to the agent; otherwise match a precedent on (control, conflict key, customer) and apply it silently, or classify the escalation (source conflict → customer team, low confidence → controller, authority → the control's owner) and write the card. `answer(cur, escalation_id, option_id, answered_by, at, reasoning=)` is the one path a person takes: it checks who may answer, executes, writes the precedent and settles the open cards that precedent now governs. Authority decisions apply silently only up to the largest exposure decided on that key. Every card carries the agent's recommendation and its basis (`recommend`: this year's precedent, else last year's handling, else policy). Overruling it needs reasoning that isn't just the option's label; the precedent records what it overrode, and the next matching case follows the person, not the agent.
-- `tpa/sod.py` — segregation of duties. `can_approve(cur, actor_id, target_type, target_id)` throws `SegregationOfDutiesError` when the actor negotiated the program, or is the agent. A blocked attempt is a finding with `escalation_type='sod'`.
-- `tpa/players.py` — the model-played humans (`players.hooks()`, `scripts/step.py --players`). Each role answers its cards through `judgment.answer`; with the model on, Claude plays the role and must pick one of the card's options, otherwise it answers as last year's people did.
-- `tpa/api.py` — the HTTP surface: clock, period (with `?as_of=` for "what did it know"), step, sign, controls, precedents, escalations and answers, explain, ask, metrics. Decimals go out as strings. `TPA_HUMANS` picks who answers a step's cards.
-- `tpa/explain.py` — the interrogation box. `chain(entry_id)` walks rule → terms (clause) → inputs → knew-at (and what wasn't known yet) → approved → signed → restated, every step citing ids. `ask(question)` resolves the records a question names and answers from their chains.
-- Working with people (`tpa/judgment.py`, `tpa/cycle.py`): at each close, a card unanswered for `policy.CARD_FOLLOW_UP_DAYS` (10) goes up to the controller, saying who didn't answer and that the close is waiting. A colleague's half-done work (`handoffs`) is re-checked against the program they propose, never trusted: finished if every control passes, handed back with the reason if not, and refused outright when the proposed program's terms don't cover the claim (checks against the wrong program would pass vacuously).
-- `tpa/evaluate.py` also reports whether answers stuck: of the findings a person had already answered before they arose, how many settled silently by precedent, and why any were asked again.
-- `tpa/scenario.py` — live scenarios for the judges' "try one of ours": `POST /api/scenario` with a kind (`deduction`, `duplicate`, `backup`, `return`, `amendment`, `approval_attempt`) adds source rows to the month the clock is on, and the engine meets them on the next step like any other data (`step: true` runs it at once). `GET /api/scenario/examples` gives one-click scenarios against the current books. Injections are recorded in `scenario_injections` and scored apart from the answer key (`scenario_findings`).
-- `tpa/review.py` — the close's analytical review: total accrued trade promotion liability as a share of annualized net sales, against General Mills' reported ratio from the latest 10-K public at the close (2.41% FY2025, 2.68% FY2026 from 2026-07-01). Within ±50% (`policy.ANALYTICAL_REVIEW_TOLERANCE`) it is commentary; outside, the sign-off package flags it for the reviewer's explanation. Judgment, not a gate. On the seed every month sits inside (2.16%–3.37%).
-- `tpa/package.py` — the sign-off package for a period as of any moment: postings, balances, findings with their escalations, gates re-run as of then, flux, and the reconciliation identity per program.
-- `tpa/export.py`, `scripts/export.py` — that package as CSVs (ledger, trial balance, reconciliation, gates) with TOTAL and CHECK formula rows Excel recomputes. `--period 2026-02 --as-of month-2` and `--as-of month-8` give February's two correct answers.
-- `tpa/model.py` — the only doorway to Claude, off unless `TPA_USE_MODEL=1` and `ANTHROPIC_API_KEY` are set (`TPA_MODEL` overrides `claude-opus-5-5`). A drafted card that changes any number or record id is thrown away.
+Six layers, one agent owning one function. **Every number is computed by deterministic code.** The model
+drafts questions, plays the people in an unattended run, and phrases answers; it never computes a number,
+never approves, and any reply that changes a number or record id is discarded.
+
+```mermaid
+flowchart TB
+  subgraph L0["0 · Source data — seeded, landing on its own dates"]
+    S["shipments · invoices · returns · deductions · claim backup<br/>agreements · amendments · last year's decisions"]
+  end
+  subgraph L1["1 · Context — tpa/extract.py"]
+    X["agreements and amendments read into program_terms,<br/>each term citing its clause, known from the day it arrived"]
+  end
+  subgraph L2["2 · Controls — tpa/onboarding.py · tpa/controls.py"]
+    M["12 controls mined from last year: threshold, owner,<br/>and the past decisions that taught each one"]
+  end
+  subgraph L3["3 · Judgment — tpa/judgment.py · tpa/sod.py"]
+    J["precedent hit → apply silently · miss → card to the right person,<br/>with a recommendation · segregation of duties throws"]
+  end
+  subgraph L4["4 · Execution — tpa/cycle.py · tpa/ledger.py · tpa/gates.py"]
+    E["monthly cycle · insert-only bitemporal ledger · restatement<br/>verifiability gates that block a period"]
+  end
+  subgraph L5["5 · Surface — tpa/api.py · tpa/explain.py · frontend/"]
+    U["month stepper · controls · escalation inbox · interrogation box<br/>sign-off package · live scenarios"]
+  end
+  P(["People: controller · close reviewer · customer teams · analysts"])
+  R(["SEC EDGAR: General Mills 10-K"])
+  S --> X --> M --> J --> E --> U
+  J <-->|cards and answers| P
+  U <-->|sign-off| P
+  R -->|analytical review at every close| E
+```
+
+## How a month runs
+
+Each **Step** runs one simulated month. Source rows are handled on the day they arrive, in the order the
+business would see them; the close runs on the last day.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Person as Person (UI)
+  participant API as API
+  participant Cycle as Cycle (tpa/cycle.py)
+  participant Read as Extractor
+  participant Ctl as Controls
+  participant Judge as Judgment
+  participant Ledger as Ledger + gates
+  Person->>API: POST /period/2026-08/step
+  API->>Cycle: step()
+  loop every day of the month
+    Cycle->>Read: amendment AM-02 arrived → read into terms (09:00)
+    Cycle->>Ctl: re-price closed months on the new terms (10:00)
+    Ctl-->>Judge: under-accrued $1,391,636.52 across 6 periods
+    Judge-->>Person: card to the controller, recommending "approve"
+    Cycle->>Ctl: each deduction: match → 12 controls (12:00)
+    alt seen before (precedent)
+      Judge->>Ledger: apply the stored decision, silently
+    else new situation
+      Judge-->>Person: card to the owner, with the agent's recommendation
+    end
+    Cycle->>Judge: sales lead tries to approve his own deal (15:00)
+    Judge-->>Ledger: SegregationOfDutiesError — blocked, recorded
+  end
+  Cycle->>Ledger: revenue, accruals, clearing (18:00)
+  Cycle->>Ledger: gates: balanced · no over-clearing · nothing stale · claims in window (20:00)
+  Cycle->>Ledger: flux + analytical review vs the 10-K (21:00)
+  API-->>Person: period state, findings, cards, package
+  Person->>API: POST /escalations/{id}/answer {answer, reasoning}
+  API->>Judge: answer() — who may answer? SoD? then execute
+  Judge->>Ledger: restatement posted into Feb–Jul, both reasonings kept
+  Judge->>Judge: answer becomes a precedent → next match passes silently
+  Person->>API: POST /period/{p}/sign — a named reviewer signs
+  Person->>API: POST /ask "Why is February now different?"
+  API-->>Person: the chain: rule · clause · inputs · knew-at · approved · restated
+```
+
+## Who decides what
+
+| Decision | Who | How it's held to account |
+|---|---|---|
+| Every amount: accruals, clearing, catch-ups, ratios | Deterministic code | Debits equal credits on every journal; gates block the period; CSV exports recompute in Excel |
+| Clearing what the agreement supports, within the mined tolerance | The agent | The mined control and the past cases that taught it are on the entry |
+| Disputing duplicates, missing proof, unsupported amounts | The agent | Holding is always allowed; disputing never writes off |
+| Anything the agreement can't settle, or over a threshold | A person, on a card with the agent's recommendation | Overruling the recommendation needs a reason; the reason becomes the precedent |
+| Restatements, write-offs, signing the close | The controller / close reviewer, by name | The engine alone never approves or signs; SoD throws on the negotiator and on the agent |
+| Wording of cards and answers (optional) | Claude | A rewrite that changes any number or id is thrown away |
+
+## Working with people
+
+- **Ask at the right moment.** Each card names who it's for (source conflict → customer team, can't verify → controller, needs authority → the control's owner), the evidence, the options, and what the agent recommends and why.
+- **Answers stick.** An answer is stored as a precedent on (control, specific conflict, customer) and the next match is settled without asking. A standing approval covers only up to the largest amount a person approved; a bigger case asks again, saying why. In the played year, 37 of 40 repeat situations settled silently; the 3 asked again were each larger than any amount approved so far.
+- **The controller says no.** Overruling the recommendation requires reasoning that isn't just the option's label. The precedent records what it overruled, and later cases follow the person, not the agent (`make says-no`; ask the interrogation box "What if the controller had said no?").
+- **Busy approvers.** A card that has sat through a close unanswered for more than 10 days goes up to the controller, saying who didn't answer and that the close is waiting.
+- **Work handed over half done.** A colleague's handoff is re-checked, never trusted: finished if every control passes, handed back with the reason if not, refused if the proposed program's terms don't cover the claim.
+- **Segregation of duties.** `can_approve` throws when the approver negotiated the program, when no program can be traced (unverifiable), or when the approver is the agent.
 
 ## What is real and what is simulated
 
-How the data is made, what is (and deliberately isn't) done to it, and how teammates get the same rows: [`DATA.md`](DATA.md).
-
 | | Source |
-| --- | --- |
-| **Real** | General Mills (CIK 0000040704) and its customers Walmart, Costco and Kroger. From the FY2026 10-K (filed 2026-07-01): net sales $18.42B, North America Retail $10.57B, Walmart 22% of net sales and 31% of North America Retail, accrued trade and coupon promotion liabilities $493M, and the trade promotion policy the ledger follows (accrue at the time of sale on estimated participation; differences are a change in estimate later). FY2025 too: $19.49B, $470M. Every figure is cited in `tpa/seed/calibration.py`; `scripts/pull_10k.py` re-reads them from EDGAR. |
-| **Simulated** | Every transaction: 24 months of shipments, invoices, returns, deductions, claim backup and disputes, the trade programs and their terms, the prior year's human decisions, and the people (role titles only). Transaction-level trade data is never public on either side. |
-| **How it fits** | Every close compares the simulated trade liability with General Mills' real ratio (`tpa/review.py`): 2.16%–3.37% of net sales all year, against 2.41% and 2.68% reported. One brand family at Walmart is $348M a year, about 11% of General Mills' North America Retail sales to Walmart. The $1.39M catch-up is 4.8% of TP-0214's annual accrual and 0.008% of net sales: material to the program, immaterial to the company. |
-| **How we know it works** | 50 planted errors with an answer key; precision and recall from `scripts/evaluate.py`. |
+|---|---|
+| **Real** | General Mills (CIK 0000040704) and its customers Walmart, Costco and Kroger. From the FY2026 10-K (filed 2026-07-01): net sales $18.42B, North America Retail $10.57B, Walmart 22% of net sales and 31% of North America Retail, accrued trade and coupon promotion liabilities $493M, and the trade promotion accounting policy. FY2025: $19.49B and $470M. Each figure is quoted with its source in `tpa/seed/calibration.py`. The accounting rules (ASC 606, ASC 326) in `.claude/rules/`. |
+| **Simulated (seeded)** | Every transaction: 24 months of shipments, invoices, returns, deductions, claim backup and disputes; the agreements and amendments as documents; last year's human decisions; the 50 planted errors. Generated deterministically from seed 1337 (`tpa/seed/`). Transaction-level trade data is never public, on either side of the trade. |
+| **Simulated (people)** | The humans who answer cards in an unattended run: the played humans (`tpa/players.py`) take the agent's recommendation, or Claude plays the role and must pick one of the card's options. In the UI a real person answers instead (`TPA_HUMANS=inbox`). |
+| **Not simulated** | Everything the system does with that data. The agreements are read from their text (`tpa/extract.py`); the generator's structured terms are only the extractor's answer key, compared in `tests/test_extract.py`. Controls are mined from last year's decisions, not configured. Every posting goes through one write path into an insert-only ledger. |
+| **How it fits** | Every close compares the simulated liability with General Mills' real ratio (`tpa/review.py`): 2.16%–3.37% of net sales all year, against 2.41% and 2.68% reported. One brand family at Walmart is $348M a year, about 11% of General Mills' North America Retail sales to Walmart. The $1.39M catch-up is 4.8% of TP-0214's annual accrual and 0.008% of net sales: material to the program, immaterial to the company. |
 
-## What it got wrong
+## Proof it works
 
-Mistakes found by testing against seeds we didn't develop on and against injected scenarios, and what changed. Each fix has a test.
+50 planted errors with an answer key (`data/answer_key.json`), scored by `tpa/evaluate.py`. Findings on
+rows a judge injects live are scored apart.
+
+| | Seed 1337 | Seed 42 (unseen) | Seed 2024 (unseen) |
+|---|---|---|---|
+| Precision, month 12 | 100% | 100% | 100% |
+| Recall, month 12 | 100% | 100% | 100% |
+
+The unseen seeds use the same generator and error types, placed differently: evidence the system isn't
+fitted to one answer key, not that it would catch a kind of error never planted. On seed 1337 the played
+year also reports escalation rate 40% (month 1) and 50% (month 12), autonomy 67% and 56%, and 37 of 40
+repeat situations settled by precedent. The escalation rate stays level because new kinds of situations
+keep arriving (a learned control in September, a new ambiguous clause); repeats don't escalate.
+
+### What it got wrong
+
+Found by testing on seeds we didn't develop on and with injected scenarios. Each fix has a test.
 
 | Found by | What it did | Why it was wrong | Fix |
 |---|---|---|---|
-| Seed 42 (unseen) | Flagged Kroger's January display claim as over-claimed | It had split December's straddling display event by days, eating January's accrual. A per-event fee is accrued whole in one month | Clear on the basis it was accrued: an event belongs to the month it starts in (`accrual.claim_share`); the window gate dates events the same way |
+| Seed 42 | Flagged Kroger's January display claim as over-claimed | It split December's straddling display event by days, eating January's accrual; a per-event fee is accrued whole in one month | Clear on the accrual's basis: an event belongs to the month it starts in (`accrual.claim_share`); the window gate dates events the same way |
 | Injected early claim | Raised a 98% redemption-drift alarm | One claim stream had arrived; Walmart sends two | Judge sell-through only once every stream the customer sent last year covers the month |
-| Injected late backup | Nothing: the claim stayed disputed | Nobody re-checked a claim held for missing backup when the backup came | Re-check on arrival; withdraw our own dispute and clear, or raise what the backup shows |
+| Injected late backup | Nothing: the claim stayed disputed | No one re-checked a claim held for missing backup when the backup came | Re-check on arrival; withdraw our own dispute and clear, or raise what the backup shows |
 | Injected self-approval | Let a sales lead approve an unmatched claim | No program meant no negotiator to compare with | Unverifiable is blocked |
 | Injected handoff | Cleared a claim with no backup | The colleague proposed the wrong program, whose terms don't cover the claim, so every check passed vacuously | A handoff the agreement can't verify goes back |
 | Costco instalments | Released an accrual while its claim sat unapplied | Rule 03: never clear one side and leave the other | Apply the unmatched instalment first, release only the residual |
+| Final audit | Terms were loaded from the generator's answer key, not read | The agent was handed the contracts' terms | `tpa/extract.py` reads every agreement and amendment; one generated agreement (TP-0232) had lost its rate to a planted ambiguous clause and was corrected to state it |
 
-Scores, seed 1337 / 42 / 2024, month 12: precision 100% / 100% / 100%, recall 100% on all three. Same generator and error types, placed differently: evidence it isn't fitted to one answer key, not that it would catch a kind of error never planted.
+## Live scenarios
 
-## Plugging into the engine (workstreams C and D)
+Hyphenate may ask for a scenario of their own. `POST /api/scenario` adds source rows to the month the clock
+is on, and the engine meets them on the next step exactly like seeded data (`step: true` runs it at once).
 
-`tpa.cycle.Hooks` is where judgment plugs in. The defaults let the engine run alone, deciding only what a mined control allows the agent and never approving or signing:
+| Kind | Example | What the engine does |
+|---|---|---|
+| `deduction` | a scan-back claim with no backup, or at a rate the program doesn't say | dispute by precedent, or a "which is the source of truth?" card |
+| `duplicate` | a claim taken twice | caught, citing the original |
+| `backup` | scan data arriving for a held claim | re-checks; withdraws its own dispute and clears |
+| `return` | cases coming back after the month was accrued | re-makes the accrual net of them |
+| `amendment` | a rate change effective months ago, as a document | reads it, re-prices the closed months, asks the controller |
+| `approval_attempt` | the sales lead approving his own program's claim | blocked by segregation of duties |
+| `handoff` | a colleague's half-finished match | re-checked, then finished or handed back with the reason |
+
+`GET /api/scenario/examples` gives ready-made ones against the books as they stand.
+
+## API
+
+`make api`, or `uv run uvicorn tpa.api:app --reload`. Amounts are decimal strings, never floats.
+
+| Endpoint | |
+|---|---|
+| `GET /api/clock` | where the simulation is |
+| `GET /api/period/{p}?as_of=` | state per customer, postings, findings, gates, flux, analytical review, as the books stood then |
+| `POST /api/period/{p}/step` | run the month the clock points at |
+| `POST /api/period/{p}/sign` | `{customer_id, signed_by}` a named reviewer signs a clean period |
+| `GET /api/period/{p}/package?as_of=` | the sign-off package |
+| `GET /api/period/{p}/export/{ledger,trial_balance,reconciliation,gates}.csv` | the package with Excel check rows |
+| `GET /api/controls` | the mined controls with their precedents and fired counts |
+| `GET /api/precedents/{history,live}/{id}` | a precedent cell's click-through |
+| `GET /api/escalations?open=true` | the inbox: question, options, recommendation, evidence |
+| `POST /api/escalations/{id}/answer` | `{answer, answered_by?, reasoning?}` writes the precedent |
+| `GET /api/explain/{entry_id}` | the evidence chain for a ledger line |
+| `POST /api/ask` | `{question}` the interrogation box |
+| `GET /api/metrics?as_of=` | precision, recall, escalation rate, autonomy, answers that stuck |
+| `GET/POST /api/scenario`, `GET /api/scenario/examples` | live scenarios |
+
+`TPA_HUMANS` chooses who answers a step's cards: `inbox` (a person, default), `players`, or `autopilot`.
+
+## Code map
+
+| Module | Role |
+|---|---|
+| `db/schema.sql` | the DDL; triggers make the ledger insert-only, journals balance and signed periods lock |
+| `tpa/extract.py` | layer 1: agreements and amendments into `program_terms`, each term citing its clause; Claude as an optional second reader |
+| `tpa/onboarding.py` | replays last year, mines thresholds, owners and precedents into `controls`; derives priors |
+| `tpa/controls.py` | one check per control, shared by the replay and the live cycle |
+| `tpa/judgment.py` | precedent match, escalation routing, recommendations, `answer()`, follow-ups |
+| `tpa/sod.py` | segregation of duties, `can_approve` |
+| `tpa/players.py`, `tpa/autopilot.py` | played humans for unattended runs; last year's answers as a baseline |
+| `tpa/cycle.py` | the monthly engine and the period state machine; late backup, handoffs |
+| `tpa/execute.py` | every posting a decision can lead to |
+| `tpa/restate.py` | restatement: catch-ups into closed months, withdrawing our own superseded disputes |
+| `tpa/ledger.py` | `post_journal`, the only write path; its docstring is the posting contract |
+| `tpa/asof.py` | the bitemporal reads: `balances_as_of`, `entries_as_of`, `terms_as_of`, `entry_history` |
+| `tpa/gates.py` | the verifiability gates and `sign_period` |
+| `tpa/review.py` | the close's analytical review against the 10-K |
+| `tpa/flux.py`, `tpa/package.py`, `tpa/export.py` | flux commentary, the sign-off package, CSV export |
+| `tpa/explain.py` | the interrogation chain and `ask()` |
+| `tpa/scenario.py` | live scenario injection |
+| `tpa/evaluate.py` | scoring against the answer key |
+| `tpa/policy.py` | every threshold that isn't mined, labelled as company policy, never GAAP |
+| `tpa/model.py` | the only doorway to Claude; off unless `TPA_USE_MODEL=1` and `ANTHROPIC_API_KEY` |
+| `tpa/seed/` | the deterministic generator (`fiction.py` frozen, `plant.py` the errors), `calibration.py` the 10-K figures |
+
+## Engine hooks
+
+`tpa.cycle.Hooks` is where judgment and people plug in. Alone, the engine decides only what a mined control
+allows the agent, and never approves or signs.
 
 | Hook | Called | Default |
-| --- | --- | --- |
-| `judge(cur, finding, at)` | as each finding is raised, and again at close for any still `open` | mechanical precedents (duplicates, no proof, late returns) auto-resolve; the rest stay `open` |
-| `on_event(cur, scripted_event, at)` | on the event's sim date — the sales lead's self-approvals | ignored (the SoD throw is C's) |
-| `approve(cur, restatement_finding, at)` | when a restatement is proposed; return the approver or `None` to leave it escalated (`tpa.restate.apply` posts it later) | none: waits for a human |
-| `sign(cur, period, customer_id, at)` | for each customer-period with nothing unresolved and every gate passing | none: the period stops at REVIEWED until a named reviewer signs |
+|---|---|---|
+| `judge(cur, finding, at)` | as each finding is raised, and at close for any still open | mechanical controls (duplicates, no proof, late returns) auto-resolve; the rest stay open |
+| `on_event(cur, event, at)` | on a scripted human action's date | ignored |
+| `approve(cur, restatement, at)` | when a restatement is proposed | none: waits for a person |
+| `sign(cur, period, customer_id, at)` | for each clean customer-period | none: stops at REVIEWED |
+| `follow_up(cur, period, at)` | at the close, before sign-off | none |
 
-After a human answers, call `tpa.execute.execute(cur, finding_id, decision, decided_by, at)`; decisions are listed in its docstring. A source-of-truth answer decides *what* is authorised and never approves a posting itself. Clears go through the agent's mined tolerance, and anything over it raises its own DED-GT-ACCRUAL finding.
-
-Finding `evidence` always carries `summary` (the card's lede and question), `control` (id, name, threshold, owner, precedent ids, learned), `measure`, and the ids involved (`deduction_ids`, `program_id`, `origin`, `accrual_key`, `amendment_id`, `journal_ids`, …) plus check-specific facts. API mapping: `POST /api/period/{p}/step` → `cycle.step`; `GET /api/controls` → `controls` joined to finding counts; `GET /api/explain/{entry_id}` → `asof.entry_history`.
-- `tpa/seed/calibration.py`, `scripts/pull_10k.py` — the real 10-K figures with their quotes, and the EDGAR pull that re-reads them (needs `SEC_USER_AGENT`).
-- `tpa/seed/` — the deterministic generator. `fiction.py` holds every frozen name, rate and volume; `plant.py` plants the prior-year human decisions and the 50 live errors.
-- `data/answer_key.json` (generated) — `planted` (the 50), `behavioural` (expected findings that are not errors), `moment` (the TP-0214 catch-up by period), `controls_truth` (what the miner should find, with precedent ids).
-- `data/program_terms_truth.json` (generated) — ground-truth term extraction. `--load-terms` loads it so nothing waits on the extractor.
+`judgment.hooks()` wires the judgment engine with cards left for people; `players.hooks()` adds the played
+humans. Finding `evidence` always carries `summary`, `control` and the ids involved.

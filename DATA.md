@@ -10,13 +10,13 @@ Nothing under `data/` is committed. Everything there is regenerated, identically
 | What | Command | Committed? |
 |---|---|---|
 | The simulated books (2,523 source rows) and the database | `make seed` | No: regenerated. The code that makes it is committed. |
-| `data/answer_key.json`, `data/program_terms_truth.json` | `make seed` | No: regenerated. |
+| `data/answer_key.json`, `data/program_terms_truth.json` (the extractor's answer key; the engine never reads it) | `make seed` | No: regenerated. |
 | The 10-K figures and their quotes | already in `tpa/seed/calibration.py` | **Yes.** |
 | The 10-K files (11 MB) and `data/edgar/extracted.json` | `uv run python scripts/pull_10k.py` (needs `SEC_USER_AGENT` in `.env`) | No: re-downloaded from EDGAR. |
 | UI mock data | `uv run python scripts/frontend_fixtures.py` | **Yes**, in `frontend/src/api/fixtures/`. |
 | A year of engine output (postings, findings, cards) | `make players` (or `make year`) | No: recomputed from the seed. |
 
-**Checking you have the same data.** `make seed` ends with `fingerprint 72a7f2811d410a9d`. That is a hash of
+**Checking you have the same data.** `make seed` ends with `fingerprint 731ff15914136d8f`. That is a hash of
 every generated row and the answer key, and `tests/test_seed.py` pins it. The same seed gives the same
 fingerprint on every machine, every Python hash seed, every run. If the fingerprint changes, the fiction
 changed: re-seed, and expect the answer key and the demo numbers to move with it.
@@ -74,7 +74,17 @@ model involved.
 - **Planting.** Errors are planted on chosen rows after generation and recorded in the answer key with
   the ids that prove them. Constrained picks go first so every plant has a valid target.
 
-## 3 · Interpretation in the engine
+## 3 · Reading the agreements: `tpa/extract.py`
+
+The agreements and amendments are documents (`trade_programs.document_text`, `program_amendments.document_text`).
+The engine reads them into `program_terms` the day they arrive: one pattern per clause type, each term
+citing the clause it came from, and a document that doesn't state a required term is refused rather than
+guessed. Ambiguous wording ("and/or", "may be counted", "contingent on") is reported with the reading.
+`tests/test_extract.py` checks that everything read matches the generator's structured terms exactly, on
+two seeds. One generated agreement, TP-0232, had lost its rate to a planted ambiguous clause; the clause now
+states the fee and stays ambiguous about what earns it (fingerprint changed to `731ff15914136d8f`).
+
+## 4 · Interpretation in the engine
 
 These steps don't change source rows. Each one records what it did, as a finding or in a journal memo, so
 the interrogation box can show it.

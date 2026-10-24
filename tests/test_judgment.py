@@ -142,7 +142,7 @@ def test_the_year_catches_every_planted_error(year):
     with conn.cursor() as cur:
         m = metrics(cur, ds.answer_key, "month-12")
     assert m["recall"] == 1.0 and m["missed"] == []
-    assert m["precision"] >= 0.95
+    assert m["precision"] == 1.0 and m["false_positives"] == []
 
 
 def test_both_self_approvals_throw(year):
@@ -179,3 +179,27 @@ def test_every_card_is_answered_and_teaches(year):
         cur.execute("SELECT COUNT(*) FROM findings WHERE evidence ? 'precedent_id' AND state = 'auto_resolved'")
         assert cur.fetchone()[0] > 0                                  # answers came back as silent passes
         assert invariant_breaches(cur) == {"unbalanced": [], "over_cleared": [], "signed_with_failed_gate": []}
+
+
+def test_a_stale_accrual_names_the_claim_filed_against_another_program(year):
+    """Costco's February instalment cites last year's program, so this year's accrual looks unclaimed."""
+    _, conn = year
+    with conn.cursor() as cur:
+        f = one_row(cur, "SELECT * FROM findings WHERE control_id = %s AND evidence ->> 'accrual_key' = %s",
+                    (C.STALE_ACCRUAL, "accrual:TP-0222:2026-02"))
+    assert f["evidence"]["miscited_deduction_ids"] == ["DD-0113"]
+    assert "DD-0113 (TP-0122)" in f["evidence"]["summary"]
+
+
+def test_an_unmatched_instalment_is_applied_before_the_accrual_is_released(year):
+    """Rule 03: Costco's unmatched instalments settle their accruals; only the residual goes back."""
+    _, conn = year
+    with conn.cursor() as cur:
+        cur.execute("""SELECT d.id, COALESCE(SUM(e.debit - e.credit), 0) FROM deductions d
+                       LEFT JOIN ledger_entries e ON e.deduction_id = d.id AND e.account = '1250 Deductions pending resolution'
+                       WHERE d.id IN ('DD-0101', 'DD-0125', 'DD-0178', 'DD-0190') GROUP BY d.id ORDER BY d.id""")
+        assert [p for _, p in cur.fetchall()] == [0, 0, 0, 0]
+        released = one_row(cur, """SELECT SUM(debit) AS released FROM ledger_entries
+                                   WHERE entry_type = 'adjustment' AND account = '2300 Accrued trade promotion liability'
+                                     AND program_id = 'TP-0222' AND valid_time = '2026-01-31'""")["released"]
+    assert released == Decimal("1603.53")

@@ -15,9 +15,10 @@ order the business would see them, and the period closes on its last day:
              20:00  gates; sign-off of every customer-period with nothing left open
              21:00  flux commentary for accounts over materiality
 
-Judgment is workstream C's. It plugs in through `Hooks`; the defaults are stand-ins so the
-engine runs on its own: mechanical precedents auto-resolve, the controller approves
-restatements, the close reviewer signs clean periods.
+Judgment is workstream C's (`tpa.judgment`). It plugs in through `Hooks`. Alone, the engine
+decides only what a mined control lets the agent decide (mechanical disputes and re-estimates);
+it never approves and never signs: restatements wait for the controller, clean periods stop at
+REVIEWED. Stand-ins (`tpa.autopilot`) and played humans (`tpa.players`) opt in to both.
 """
 
 import json
@@ -32,7 +33,7 @@ from tpa.accrual import fixed_fund_amount, rate
 from tpa.asof import sim_clock, terms_as_of
 from tpa.constants import Account, Control as C, CUSTOMERS, add_months, period_end, period_start
 from tpa.controls import (
-    DRIFT_OWNER, DRIFT_TOLERANCE_PCT, Hit, check_deduction, check_late_return, check_redemption, exceeds,
+    Hit, program_on, check_deduction, check_late_return, check_redemption, exceeds,
     match_program, root_cause,
 )
 from tpa.execute import (
@@ -43,6 +44,7 @@ from tpa.flux import write_flux
 from tpa.gates import GateFailure, no_stale_accruals, run_gates, sign_period
 from tpa.ledger import Line, post_journal
 from tpa.onboarding import ensure_onboarded, learn_control
+from tpa.policy import DRIFT_OWNER, DRIFT_TOLERANCE_PCT
 from tpa.restate import on_amendment
 from tpa.rows import all_rows, one_row
 
@@ -72,20 +74,22 @@ def ignore_event(cur: psycopg.Cursor, event: dict, when: datetime) -> None:
     return None
 
 
-def controller_approves(cur: psycopg.Cursor, f: dict, when: datetime) -> str | None:
-    return "controller"
+def await_approval(cur: psycopg.Cursor, f: dict, when: datetime) -> str | None:
+    """The engine never approves: the restatement stays escalated until a person answers."""
+    return None
 
 
-def reviewer_signs_clean(cur: psycopg.Cursor, period: str, customer_id: str, when: datetime) -> str | None:
-    return "close_reviewer"
+def await_signature(cur: psycopg.Cursor, period: str, customer_id: str, when: datetime) -> str | None:
+    """The engine never signs: a clean period stops at REVIEWED until a named reviewer signs."""
+    return None
 
 
 @dataclass
 class Hooks:
     judge: Callable[[psycopg.Cursor, dict, datetime], None] = default_judge
     on_event: Callable[[psycopg.Cursor, dict, datetime], None] = ignore_event
-    approve: Callable[[psycopg.Cursor, dict, datetime], str | None] = controller_approves
-    sign: Callable[[psycopg.Cursor, str, str, datetime], str | None] = reviewer_signs_clean
+    approve: Callable[[psycopg.Cursor, dict, datetime], str | None] = await_approval
+    sign: Callable[[psycopg.Cursor, str, str, datetime], str | None] = await_signature
 
 
 @dataclass
@@ -256,14 +260,24 @@ def raise_stale(run: Run, customer_id: str, when: datetime) -> None:
                                                      AND e.entry_type IN ('clearing', 'dispute'))
                                    ORDER BY d.id""",
                            (customer_id, v["origin"], when.date(), v["program_id"]))
+        # The claim may have arrived citing another program of the same kind (an old or neighbouring one).
+        miscited = all_rows(cur, """SELECT d.id, d.program_id FROM deductions d
+                                      JOIN trade_programs o ON o.id = d.program_id
+                                      JOIN trade_programs p ON p.id = %s AND p.program_type = o.program_type
+                                    WHERE d.customer_id = %s AND d.claimed_period = %s AND d.available_at <= %s
+                                      AND d.program_id <> p.id ORDER BY d.id""",
+                            (v["program_id"], customer_id, v["origin"], when.date()))
         hit = Hit(C.STALE_ACCRUAL, "stale_accrual", Decimal(v["age_periods"] - v["allowed_periods"] + 2),
                   v["outstanding"], v["outstanding"],
                   f"{v['key']} still carries ${v['outstanding']:,} after {v['age_periods']} periods with no deduction "
                   f"cleared against it (allowed {v['allowed_periods']})."
-                  + (f" Unmatched deductions that may belong to it: {', '.join(p['id'] for p in pending)}." if pending else ""),
+                  + (f" Unmatched deductions that may belong to it: {', '.join(p['id'] for p in pending)}." if pending else "")
+                  + (f" Claimed for {v['origin']} against another program: "
+                     f"{', '.join(m['id'] + ' (' + m['program_id'] + ')' for m in miscited)}." if miscited else ""),
                   {"accrual_key": v["key"], "program_id": v["program_id"], "origin": v["origin"],
                    "outstanding": v["outstanding"], "age_periods": v["age_periods"],
-                   "candidate_deduction_ids": [p["id"] for p in pending]})
+                   "candidate_deduction_ids": [p["id"] for p in pending],
+                   "miscited_deduction_ids": [m["id"] for m in miscited]})
         run.judge(raise_finding(cur, hit, period=run.period, customer_id=customer_id, at=when,
                                 control=lib[C.STALE_ACCRUAL]), when)
 
@@ -275,11 +289,8 @@ def watch_redemption(run: Run, when: datetime) -> None:
     for o in all_rows(cur, """SELECT DISTINCT d.customer_id, d.claimed_period FROM deductions d
                                WHERE d.available_at BETWEEN %s AND %s AND d.reason_code LIKE 'SB-%%'
                                ORDER BY 1, 2""", (period_start(run.period), period_end(run.period))):
-        program_id = one_row(cur, """SELECT program_id FROM program_terms WHERE customer_id = %s
-                                       AND program_type = 'scan_back' AND window_start <= %s AND window_end >= %s
-                                     ORDER BY decision_time DESC LIMIT 1""",
-                             (o["customer_id"], period_end(o["claimed_period"]), period_start(o["claimed_period"])))
-        hit = program_id and check_redemption(cur, program_id["program_id"], o["claimed_period"], when)
+        program_id = program_on(cur, o["customer_id"], "scan_back", period_start(o["claimed_period"]), when)
+        hit = program_id and check_redemption(cur, program_id, o["claimed_period"], when)
         if not hit or hit.measure <= DRIFT_TOLERANCE_PCT:
             continue
         if learn_control(cur, C.REDEMPTION_DRIFT, DRIFT_TOLERANCE_PCT, DRIFT_OWNER, when):

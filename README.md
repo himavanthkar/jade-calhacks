@@ -43,14 +43,14 @@ Copy `.env.example` to `.env`; the Makefile loads it. `ANTHROPIC_API_KEY` with `
 
 ## Plugging into the engine (workstreams C and D)
 
-`tpa.cycle.Hooks` is where judgment plugs in. The defaults let the engine run alone:
+`tpa.cycle.Hooks` is where judgment plugs in. The defaults let the engine run alone, deciding only what a mined control allows the agent and never approving or signing:
 
 | Hook | Called | Default |
 | --- | --- | --- |
 | `judge(cur, finding, at)` | as each finding is raised, and again at close for any still `open` | mechanical precedents (duplicates, no proof, late returns) auto-resolve; the rest stay `open` |
 | `on_event(cur, scripted_event, at)` | on the event's sim date — the sales lead's self-approvals | ignored (the SoD throw is C's) |
-| `approve(cur, restatement_finding, at)` | when a restatement is proposed; return the approver or `None` to leave it escalated (`tpa.restate.apply` posts it later) | `"controller"` |
-| `sign(cur, period, customer_id, at)` | for each customer-period with nothing unresolved and every gate passing | `"close_reviewer"` |
+| `approve(cur, restatement_finding, at)` | when a restatement is proposed; return the approver or `None` to leave it escalated (`tpa.restate.apply` posts it later) | none: waits for a human |
+| `sign(cur, period, customer_id, at)` | for each customer-period with nothing unresolved and every gate passing | none: the period stops at REVIEWED until a named reviewer signs |
 
 After a human answers, call `tpa.execute.execute(cur, finding_id, decision, decided_by, at)`; decisions are listed in its docstring. A source-of-truth answer decides *what* is authorised and never approves a posting itself. Clears go through the agent's mined tolerance, and anything over it raises its own DED-GT-ACCRUAL finding.
 

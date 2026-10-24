@@ -19,15 +19,15 @@ from decimal import Decimal
 
 import psycopg
 
-from tpa.accrual import ZERO, money, rate, scan_back_segments
+from tpa.accrual import ZERO, money, rate, scan_back_segments, split_by_activity
 from tpa.asof import terms_as_of
 from tpa.constants import Account, Control as C, add_months, period_end, period_of, period_start
-from tpa.controls import Hit, claim_dates, severity
+from tpa.controls import Hit, claim_dates, program_on, severity
 from tpa.ledger import Line, post_journal, reverse_lines
 from tpa.rows import all_rows, one_row
 
 DECISIONS = ("clear", "top_up_and_clear", "dispute", "dispute_difference", "allocate", "reestimate", "hold",
-             "release_accrual", "acknowledge")
+             "release_accrual", "apply_candidates", "acknowledge")
 
 
 class ExecutionError(RuntimeError):
@@ -405,6 +405,8 @@ def execute(cur: psycopg.Cursor, finding_id: str, decision: str, decided_by: str
       allocate            straddles: clear the claim against each origin by activity days
       reestimate          RETURNS-NOT-NETTED: re-make the origin accrual net of returns
       release_accrual     STALE-ACCRUAL: release the accrual to expense
+      apply_candidates    STALE-ACCRUAL: clear the unmatched deductions the card names against the
+                          accrual, then release only what is left
       hold                leave everything pending; the finding stays escalated
       acknowledge         nothing to post (e.g. redemption drift): noted, resolved
     A source-of-truth answer decides *what* is authorised; it never approves a posting, so
@@ -433,6 +435,20 @@ def execute(cur: psycopg.Cursor, finding_id: str, decision: str, decided_by: str
     elif decision == "reestimate":
         j = reestimate(cur, ev["program_id"], ev["origin"], period, at, finding_id=finding_id,
                        reason=ev.get("summary", "") + (f" ({note})" if note else ""))
+        journals += [j] if j else []
+    elif decision == "apply_candidates":
+        if approver is None:
+            raise ExecutionError("matching an unmatched deduction to an accrual needs a human approver")
+        program_id, origin = ev["program_id"], ev["origin"]
+        for ded_id in ev.get("candidate_deduction_ids", []):
+            ded = one_row(cur, "SELECT * FROM deductions WHERE id = %s", (ded_id,))
+            amount = min(unresolved_amount(cur, ded), liability(cur, program_id, origin, at))
+            if amount > 0:
+                journals.append(clear(cur, ded, program_id, origin, amount, period, at, approved_by=approver,
+                                      finding_id=finding_id,
+                                      memo=f"Apply unmatched {ded_id} to {accrual_key(program_id, origin)}: {note}"))
+        j = release_accrual(cur, f["customer_id"], program_id, origin, period, at, approved_by=decided_by,
+                            finding_id=finding_id)
         journals += [j] if j else []
     elif decision == "release_accrual":
         program_id, origin = ev["program_id"], ev["origin"]
@@ -468,13 +484,10 @@ def execute(cur: psycopg.Cursor, finding_id: str, decision: str, decided_by: str
                     agent_clears(ded, program_id, amount=supported)
             elif decision == "allocate":
                 start, end = claim_dates(ded)
-                days = (end - start).days + 1
-                left = pending
                 origins = _origins_between(start, end)
-                for i, origin in enumerate(origins):
-                    o_start, o_end = max(start, period_start(origin)), min(end, period_end(origin))
-                    share = left if i == len(origins) - 1 else money(pending * ((o_end - o_start).days + 1) / days)
-                    left -= share
+                shares = split_by_activity(pending, start, end, [(period_start(o), period_end(o)) for o in origins])
+                for origin, share in zip(origins, shares):
+                    o_start = max(start, period_start(origin))
                     term = terms_as_of(cur, program_id, o_start, at)
                     target = program_id if term and term["window_start"] <= o_start <= term["window_end"] else \
                         _program_on(cur, ded["customer_id"], term["program_type"] if term else None, o_start, at)
@@ -504,9 +517,7 @@ def _origins_between(start: date, end: date) -> list[str]:
 
 
 def _program_on(cur: psycopg.Cursor, customer_id: str, program_type: str | None, on: date, at: datetime) -> str:
-    row = one_row(cur, """SELECT program_id FROM program_terms WHERE customer_id = %s AND program_type = %s
-                            AND window_start <= %s AND window_end >= %s AND decision_time <= %s
-                          ORDER BY decision_time DESC LIMIT 1""", (customer_id, program_type, on, on, at))
-    if row is None:
+    program_id = program_on(cur, customer_id, program_type, on, at)
+    if program_id is None:
         raise ExecutionError(f"no {program_type} program for {customer_id} on {on}")
-    return row["program_id"]
+    return program_id

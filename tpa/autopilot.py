@@ -63,5 +63,15 @@ def judge(cur: psycopg.Cursor, f: dict, when: datetime) -> None:
                  f"{'…' if len(precedents) > 3 else ''})")
 
 
+def standin_approve(cur: psycopg.Cursor, f: dict, when: datetime) -> str | None:
+    """Stand-in controller: approves the restatement, as the controller who owns it would."""
+    return ACTOR_FOR_ROLE["controller"]
+
+
+def standin_sign(cur: psycopg.Cursor, period: str, customer_id: str, when: datetime) -> str | None:
+    """Stand-in close reviewer: signs a period only once it is clean (the engine asks no sooner)."""
+    return ACTOR_FOR_ROLE["close_reviewer"]
+
+
 def hooks() -> Hooks:
-    return Hooks(judge=judge)
+    return Hooks(judge=judge, approve=standin_approve, sign=standin_sign)

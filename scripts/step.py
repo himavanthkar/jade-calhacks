@@ -49,6 +49,16 @@ def main() -> None:
         print(f"{s['period']}  {states}  |  {found}")
         for line in s["log"]:
             print(f"    {line}")
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM periods WHERE state = 'REVIEWED' AND signed_at IS NULL")
+        unsigned = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM findings WHERE conflict_type = 'amendment_not_applied' AND state = 'escalated'")
+        pending = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM escalations WHERE answered_at IS NULL")
+        cards = cur.fetchone()[0]
+    if unsigned or pending or cards:
+        print(f"waiting on people: {unsigned} periods awaiting sign-off, {pending} restatements awaiting approval, "
+              f"{cards} open cards")
     if args.metrics:
         key = json.loads((ROOT / "data" / "answer_key.json").read_text())
         with conn.cursor() as cur:

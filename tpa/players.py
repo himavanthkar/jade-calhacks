@@ -53,6 +53,10 @@ def standin(f: dict, esc: dict) -> tuple[str, str]:
     """(option_id, reasoning) as last year's people would have answered."""
     options = esc["options"]
     key = (f["control_id"], f["conflict_type"])
+    if any(o["decision"] == "apply_candidates" for o in options):
+        # Rule 03: never release an accrual while a claim that may settle it sits unapplied.
+        return "apply", ("The unmatched deduction is this accrual's claim: same customer, same period, close to "
+                         "the instalment. Apply it and release only the residual.")
     prior = PRECEDENT_ANSWERS.get(key) or PRECEDENT_ANSWERS.get((f["control_id"], None))
     if prior:
         option = next((o for o in options if o["decision"] == prior[1]), None)
@@ -96,5 +100,12 @@ def answer_open(cur: psycopg.Cursor, at: datetime) -> list[dict]:
     return [r for esc in judgment.open_escalations(cur) if (r := respond(cur, esc, at))]
 
 
+def sign(cur: psycopg.Cursor, period: str, customer_id: str, at: datetime) -> str | None:
+    """The played close reviewer signs a period the engine offers: every gate passed, nothing open."""
+    return ACTOR_FOR_ROLE["close_reviewer"]
+
+
 def hooks() -> Hooks:
-    return judgment.hooks(respond=respond)
+    h = judgment.hooks(respond=respond)
+    h.sign = sign
+    return h

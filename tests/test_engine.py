@@ -10,8 +10,8 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from tpa import autopilot
-from tpa.asof import balances_as_of, entry_history
+from tpa import autopilot, restate
+from tpa.asof import balances_as_of, entry_history, liability_outstanding
 from tpa.constants import Account
 from tpa.cycle import Hooks, run_through
 from tpa.db import connect, reset_schema
@@ -24,6 +24,7 @@ from tpa.seed.load import load
 LIAB = Account.ACCRUED_TRADE_PROMO
 ENTERED = datetime(2026, 8, 19, 9)
 RESTATED_AT = datetime(2026, 8, 19, 11)
+INBOX_APPROVAL = datetime(2026, 8, 31, 23)
 
 
 @pytest.fixture(scope="module")
@@ -31,20 +32,20 @@ def ds():
     return build(1337, 24)
 
 
-def run_all(ds, hooks) -> psycopg.Connection:
+def run_all(ds, hooks, through: str = "2026-12") -> psycopg.Connection:
     """Seed the test database and step all twelve live months. Returns an autocommit connection,
     so reads never hold a lock that the next schema reset would wait on."""
     conn = connect()
     reset_schema(conn)
     load(conn, ds, load_terms=True)
-    run_through(conn, "2026-12", hooks)
+    run_through(conn, through, hooks)
     conn.autocommit = True
     return conn
 
 
-def moment_catch_ups(cur, ds) -> dict[str, Decimal]:
+def moment_catch_ups(cur, ds, after: datetime = RESTATED_AT) -> dict[str, Decimal]:
     return {p["period"]: balances_as_of(cur, p["period"], ENTERED, "WMT")[LIAB]
-            - balances_as_of(cur, p["period"], RESTATED_AT, "WMT")[LIAB] for p in ds.answer_key["moment"]["periods"]}
+            - balances_as_of(cur, p["period"], after, "WMT")[LIAB] for p in ds.answer_key["moment"]["periods"]}
 
 
 def invariant_breaches(cur) -> dict[str, list]:
@@ -60,12 +61,23 @@ def invariant_breaches(cur) -> dict[str, list]:
 
 @pytest.fixture(scope="module")
 def engine_alone(ds) -> dict:
-    """The engine with its stand-in defaults only (C not plugged in), reduced to plain values."""
-    conn = run_all(ds, Hooks())
+    """The engine alone, with no one to approve or sign. Then a controller approves the restatement
+    from the inbox at the end of August, and the year runs on. Reduced to plain values."""
+    conn = run_all(ds, Hooks(), through="2026-08")
     with conn.cursor() as cur:
-        f = one_row(cur, "SELECT * FROM findings WHERE conflict_type = 'amendment_not_applied'")
-        snap = {"catch_ups": moment_catch_ups(cur, ds), "restatement": f, "invariants": invariant_breaches(cur),
-                "metrics": metrics(cur, ds.answer_key, "month-12")}
+        pending = one_row(cur, "SELECT * FROM findings WHERE conflict_type = 'amendment_not_applied'")
+        cur.execute("SELECT state, COUNT(*) FROM periods WHERE period >= '2026-01' GROUP BY 1")
+        alone = {"states": dict(cur.fetchall()), "restatement_state": pending["state"]}
+        cur.execute("SELECT COUNT(*) FROM ledger_entries WHERE approved_by IS NOT NULL AND decision_time >= '2026-01-01'")
+        alone["approved_lines"] = cur.fetchone()[0]
+        restate.apply(cur, pending["id"], "controller", INBOX_APPROVAL, period="2026-08")
+    run_through(conn, "2026-12", Hooks())
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM period_signoffs")
+        alone["signoffs"] = cur.fetchone()[0]
+        f = one_row(cur, "SELECT * FROM findings WHERE id = %s", (pending["id"],))
+        snap = {"alone": alone, "catch_ups": moment_catch_ups(cur, ds, after=INBOX_APPROVAL), "restatement": f,
+                "invariants": invariant_breaches(cur), "metrics": metrics(cur, ds.answer_key, "month-12")}
     conn.close()
     return snap
 
@@ -76,6 +88,14 @@ def with_standins(ds, engine_alone):
     conn = run_all(ds, autopilot.hooks())
     yield conn
     conn.close()
+
+
+def test_the_engine_alone_never_approves_or_signs(engine_alone):
+    alone = engine_alone["alone"]
+    assert alone["signoffs"] == 0 and alone["approved_lines"] == 0
+    assert alone["restatement_state"] == "escalated"
+    assert "SIGNED" not in alone["states"] and "CLOSED" not in alone["states"]
+    assert alone["states"].get("REVIEWED", 0) > 0
 
 
 # ── onboarding ──────────────────────────────────────────────────────────────
@@ -154,3 +174,59 @@ def test_scored_against_the_answer_key(ds, engine_alone, with_standins):
         # Everything but the two segregation-of-duties throws, which are workstream C's.
         assert {r["type"] for r in m["missed"]} <= {"sales_lead_self_approval"}
         assert m["autonomy"] >= autonomy
+
+
+# ── reconciliation (rule 03) ────────────────────────────────────────────────
+def test_reconciliation_identity(with_standins):
+    """Per (program, origin): ending accrual = opening + accruals + adjustments − settled claims,
+    each term summed from its own entries, equal to the outstanding liability to the cent."""
+    with with_standins.cursor() as cur:
+        cur.execute("""SELECT program_id, valid_time, entry_type, SUM(credit) - SUM(debit) FROM ledger_entries
+                       WHERE account = %s GROUP BY 1, 2, 3""", (LIAB,))
+        terms: dict = {}
+        for program_id, vt, kind, net in cur.fetchall():
+            terms.setdefault((program_id, vt), {})[kind] = net
+        outstanding = liability_outstanding(cur, datetime(2027, 1, 1))
+    assert terms
+    for key, t in terms.items():
+        assert set(t) <= {"opening", "accrual", "reversal", "adjustment", "restatement", "clearing"}, key
+        estimate_adjustments = t.get("reversal", 0) + t.get("adjustment", 0) + t.get("restatement", 0)
+        settled = -t.get("clearing", 0)
+        ending = t.get("opening", 0) + t.get("accrual", 0) + estimate_adjustments - settled
+        assert ending == outstanding.get(key, 0), key
+        assert ending >= 0, key                                          # nothing settled twice
+
+
+def test_every_deduction_has_one_resolution(with_standins):
+    """AR relieved once for the amount taken; every dollar then cleared against an accrual, disputed,
+    or still pending — and anything pending is on a finding, never quietly parked."""
+    with with_standins.cursor() as cur:
+        cur.execute("""
+            SELECT d.id, d.amount,
+                   COALESCE(SUM(e.credit - e.debit) FILTER (WHERE e.account = %(ar)s), 0),
+                   COALESCE(SUM(e.debit - e.credit) FILTER (WHERE e.account = %(pending)s), 0),
+                   COALESCE(SUM(e.debit) FILTER (WHERE e.account = %(liab)s AND e.entry_type = 'clearing'), 0),
+                   COALESCE(SUM(e.debit - e.credit) FILTER (WHERE e.account = %(disputed)s), 0),
+                   EXISTS (SELECT 1 FROM findings f WHERE f.evidence::text LIKE '%%"' || d.id || '"%%')
+            FROM deductions d LEFT JOIN ledger_entries e ON e.deduction_id = d.id
+            WHERE d.available_at >= '2026-01-01' GROUP BY d.id, d.amount""",
+                    {"ar": Account.ACCOUNTS_RECEIVABLE, "pending": Account.DEDUCTIONS_PENDING, "liab": LIAB,
+                     "disputed": Account.DISPUTE_RECEIVABLE})
+        rows = cur.fetchall()
+    assert rows
+    for ded_id, amount, ar, pending, cleared, disputed, cited in rows:
+        assert ar == amount, ded_id
+        assert pending + cleared + disputed == amount, ded_id
+        assert pending == 0 or cited, ded_id
+
+
+def test_trade_promotion_is_contra_revenue(with_standins):
+    with with_standins.cursor() as cur:
+        cur.execute("SELECT DISTINCT account FROM ledger_entries")
+        accounts = {a for (a,) in cur.fetchall()}
+        cur.execute("""SELECT COUNT(*) FROM ledger_entries WHERE account = %s
+                         AND (approved_by IS NULL OR approved_by NOT IN (SELECT id FROM actors WHERE role = 'controller'))""",
+                    (Account.WRITE_OFF,))
+        unapproved_writeoffs = cur.fetchone()[0]
+    assert all(a[0] in "124" or a == Account.WRITE_OFF for a in accounts), accounts   # no 5xxx/6xxx promo expense
+    assert unapproved_writeoffs == 0

@@ -14,8 +14,8 @@ Segregation of duties is checked on every answer (`tpa.sod.can_approve`); a bloc
 its own finding, escalation_type 'sod'. Postings go through `tpa.execute` and `tpa.restate`; this
 module decides who decides, never how much.
 
-Policy, not GAAP: LOW_CONFIDENCE and which conflicts count as source-of-truth questions are
-company choices, set here and nowhere else.
+Policy, not GAAP: LOW_CONFIDENCE (tpa.policy) and which conflicts count as source-of-truth
+questions (here) are company choices.
 """
 
 import json
@@ -30,16 +30,15 @@ from tpa import model, restate
 from tpa.constants import Control as C, Prefix, period_of
 from tpa.cycle import MECHANICAL, Hooks, default_judge
 from tpa.execute import _jsonable, execute, finding, next_id, set_finding_state
+from tpa.policy import LOW_CONFIDENCE
 from tpa.rows import all_rows, one_row
 from tpa.sod import SegregationOfDutiesError, actor, can_approve, record_block
 
-# Policy: below this the agent says it cannot verify the finding from the agreement.
-LOW_CONFIDENCE = Decimal("0.6")
 # Policy: conflicts where two sources disagree and a person must say which one wins.
 SOURCE_CONFLICTS = {"claimed_rate", "terms_reading"}
 # Decisions that post on the decider's own authority. A precedent applies them silently only
 # up to the exposure the human decided on; anything larger asks again.
-AUTHORITY_DECISIONS = {"top_up_and_clear", "release_accrual", "clear", "approve"}
+AUTHORITY_DECISIONS = {"top_up_and_clear", "release_accrual", "apply_candidates", "clear", "approve"}
 # Answers that decide nothing for next time.
 NOT_PRECEDENT = {"hold", "escalate"}
 RESTATEMENT = "amendment_not_applied"
@@ -78,8 +77,15 @@ OPTIONS = {
 DEFAULT_OPTIONS = [_o("clear", "Clear", "clear"), _o("dispute", "Dispute", "dispute"), HOLD]
 
 
+APPLY_CANDIDATES = _o("apply", "Apply the unmatched deductions named here, release the rest", "apply_candidates")
+
+
 def options_for(f: dict) -> list[dict]:
-    return OPTIONS.get((f["control_id"], f["conflict_type"])) or OPTIONS.get((f["control_id"], None)) or DEFAULT_OPTIONS
+    options = OPTIONS.get((f["control_id"], f["conflict_type"])) or OPTIONS.get((f["control_id"], None)) \
+        or DEFAULT_OPTIONS
+    if f["control_id"] == C.STALE_ACCRUAL and (f["evidence"] or {}).get("candidate_deduction_ids"):
+        return [APPLY_CANDIDATES, *options]
+    return options
 
 
 # ── precedents ──────────────────────────────────────────────────────────────
@@ -343,6 +349,7 @@ def on_event(cur: psycopg.Cursor, event: dict, at: datetime, *, respond: Respond
 
 def hooks(respond: Respond | None = None) -> Hooks:
     """The engine's hooks with judgment plugged in. Without `respond`, escalations wait in the inbox
-    for a person (the API); `tpa.players.hooks()` passes the model-played humans."""
+    for a person (the API) and periods wait for a signature; `tpa.players.hooks()` passes the
+    model-played humans and the played close reviewer."""
     return Hooks(judge=partial(judge, respond=respond), on_event=partial(on_event, respond=respond),
                  approve=partial(request_approval, respond=respond))

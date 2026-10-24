@@ -17,6 +17,7 @@ import psycopg
 from tpa.accrual import ZERO, nice_ceiling
 from tpa.constants import Account, add_months, period_end
 from tpa.execute import next_id
+from tpa.policy import MATERIALITY_FLOOR
 from tpa.rows import all_rows
 
 ACCOUNTS = (Account.ACCRUED_TRADE_PROMO, Account.DEDUCTIONS_PENDING)
@@ -50,7 +51,7 @@ def balance(cur: psycopg.Cursor, account: str, as_of: datetime) -> Decimal:
 def materiality(cur: psycopg.Cursor) -> Decimal:
     cur.execute("SELECT threshold FROM controls WHERE id = 'CTL-DED-GT-ACCRUAL'")
     row = cur.fetchone()
-    return row[0] if row else nice_ceiling(Decimal("1000"))
+    return row[0] if row else nice_ceiling(MATERIALITY_FLOOR)
 
 
 def write_flux(cur: psycopg.Cursor, period: str, when: datetime) -> list[str]:

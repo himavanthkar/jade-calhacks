@@ -12,7 +12,6 @@
 Deterministic: the model has no part in this module.
 """
 
-import statistics
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, time
@@ -20,21 +19,22 @@ from decimal import Decimal
 
 import psycopg
 
-from tpa.accrual import ZERO, fixed_fund_amount, money, nice_ceiling, scan_back_segments
+from tpa.accrual import ZERO, activity_share, fixed_fund_amount, money, nice_ceiling
 from tpa.asof import terms_as_of
 from tpa.constants import (
     HISTORY_MONTHS, Account, Control as C, month_for_period, period_end, period_for_month, period_of,
     period_start,
 )
 from tpa.controls import LIBRARY, check_deduction, check_late_return, match_program, root_cause
+from tpa.execute import scan_back_estimate
 from tpa.gates import claim_lag_prior
+from tpa.policy import MATERIALITY_RATE
 from tpa.rows import all_rows, one_row
 
 HISTORY_START = period_for_month(min(HISTORY_MONTHS))
 HISTORY_END = period_for_month(max(HISTORY_MONTHS))
 ONBOARDED_AT = datetime.combine(period_end(HISTORY_END), time(23, 30))
 # An over-accrual smaller than a tenth of a percent of a month's accruals is not worth a human's time.
-MATERIALITY_RATE = Decimal("0.001")
 GATE_OWNER = "close_reviewer"
 
 
@@ -93,18 +93,8 @@ def estimate(cur: psycopg.Cursor, program_id: str, origin: str, as_of: datetime)
         return fixed_fund_amount(term, origin)
     if term["program_type"] != "scan_back":
         return ZERO
-    shipments = all_rows(cur, "SELECT * FROM shipments WHERE program_id = %s AND period = %s", (program_id, origin))
-    returned = dict(all_rows_pairs(cur, "SELECT shipment_id, SUM(cases) FROM returns WHERE shipment_id = ANY(%s) "
-                                        "AND available_at <= %s GROUP BY shipment_id",
-                                   ([s["id"] for s in shipments], as_of.date())))
-    return sum((s.amount for s in scan_back_segments(
-        shipments, returned, term["projected_redemption"],
-        lambda on: terms_as_of(cur, program_id, on, as_of))), ZERO)
-
-
-def all_rows_pairs(cur: psycopg.Cursor, sql: str, params) -> list[tuple]:
-    cur.execute(sql, params)
-    return cur.fetchall()
+    # The same estimator the live accrual uses, with volume and terms both as known at `as_of`.
+    return scan_back_estimate(cur, program_id, origin, as_of, as_of)[0]
 
 
 def over_claim(cur: psycopg.Cursor, program_id: str | None, origin: str, as_of: datetime) -> Decimal:
@@ -131,17 +121,8 @@ def over_claim(cur: psycopg.Cursor, program_id: str | None, origin: str, as_of: 
         rate = hits.get(C.RATE_CONFLICT)
         if rate and rate.conflict_type == "claimed_rate":
             amount -= rate.exposure
-        claims += amount * activity_share(ded, start, end)
+        claims += amount * activity_share(ded["claim_start"], ded["claim_end"], start, end)
     return money(claims) - estimate(cur, program_id, origin, as_of)
-
-
-def activity_share(ded: dict, start, end) -> Decimal:
-    """The part of a claim whose activity days fall in [start, end] — how the controller allocated straddles."""
-    if not (ded["claim_start"] and ded["claim_end"]):
-        return Decimal("1")
-    days = (ded["claim_end"] - ded["claim_start"]).days + 1
-    inside = (min(end, ded["claim_end"]) - max(start, ded["claim_start"])).days + 1
-    return Decimal(max(inside, 0)) / Decimal(days)
 
 
 # ── priors ──────────────────────────────────────────────────────────────────

@@ -16,12 +16,11 @@ import psycopg
 from tpa.accrual import backup_variance, rate, straddles_quarter_end
 from tpa.asof import terms_as_of
 from tpa.constants import Control as C, period_end, period_start
+from tpa.policy import SEVERITY_BANDS, STRADDLE_CONFIDENCE, TERMS_READING_CONFIDENCE, VARIANCE_NOISE_FLOOR_PCT
 from tpa.rows import all_rows, one_row
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
-# Below this a backup "variance" is the retailer rounding a blended rate, not a difference.
-VARIANCE_NOISE_FLOOR_PCT = Decimal("0.01")
 
 
 @dataclass(frozen=True)
@@ -110,13 +109,7 @@ def exceeds(hit: Hit, threshold: Decimal | None) -> bool:
 
 def severity(exposure: Decimal | None) -> str:
     e = exposure or ZERO
-    if e >= Decimal("250000"):
-        return "critical"
-    if e >= Decimal("50000"):
-        return "high"
-    if e >= Decimal("2500"):
-        return "medium"
-    return "low"
+    return next((band for floor, band in SEVERITY_BANDS if e >= floor), "low")
 
 
 # ── matching ────────────────────────────────────────────────────────────────
@@ -139,16 +132,22 @@ def match_program(cur: psycopg.Cursor, ded: dict, as_of: datetime) -> tuple[str 
     ptype = program_type_for_reason(ded["reason_code"])
     if ptype is None:
         return None, "unmatched"
-    on = claim_dates(ded)[0]
+    program_id = program_on(cur, ded["customer_id"], ptype, claim_dates(ded)[0], as_of)
+    return (program_id, "inferred") if program_id else (None, "unmatched")
+
+
+def program_on(cur: psycopg.Cursor, customer_id: str, program_type: str | None, on: date,
+               as_of: datetime) -> str | None:
+    """The customer's program of this type whose window holds `on`, on the terms known at `as_of`."""
     row = one_row(
         cur,
         """SELECT program_id FROM program_terms
            WHERE customer_id = %s AND program_type = %s AND window_start <= %s AND window_end >= %s
              AND decision_time <= %s
            ORDER BY decision_time DESC LIMIT 1""",
-        (ded["customer_id"], ptype, on, on, as_of),
+        (customer_id, program_type, on, on, as_of),
     )
-    return (row["program_id"], "inferred") if row else (None, "unmatched")
+    return row["program_id"] if row else None
 
 
 def backup_for(cur: psycopg.Cursor, deduction_id: str, as_of_date: date) -> dict | None:
@@ -196,7 +195,7 @@ def check_deduction(cur: psycopg.Cursor, ded: dict, program_id: str | None, as_o
                         f"{ded['id']} covers {start} to {end}, across a quarter end; the claimed period "
                         f"{ded['claimed_period']} cannot be verified on its own.",
                         {**base, "claim_start": start.isoformat(), "claim_end": end.isoformat()},
-                        confidence=Decimal("0.5")))
+                        confidence=STRADDLE_CONFIDENCE))
 
     if terms is None:
         return hits
@@ -217,7 +216,7 @@ def check_deduction(cur: psycopg.Cursor, ded: dict, program_id: str | None, as_o
                         f"Our terms do not settle it. Which is the source of truth?",
                         {**base, "backup_id": backup["id"], "customer_reading": backup["notes"],
                          "source_clause_id": terms["source_clause_id"]},
-                        confidence=Decimal("0.4")))
+                        confidence=TERMS_READING_CONFIDENCE))
 
     if ded["claimed_rate"] is not None and ptype == "scan_back" and ded["claimed_rate"] != terms["rate"]:
         diff = ded["claimed_rate"] - terms["rate"]
@@ -249,10 +248,7 @@ def root_cause(hits: list[Hit]) -> list[Hit]:
 
 
 # ── redemption drift: the control the live year teaches ─────────────────────
-# History tracked the projection within noise, so it cannot teach this tolerance: a full
-# point of sell-through is the policy until enough live months exist to mine one.
-DRIFT_TOLERANCE_PCT = Decimal("1.0")
-DRIFT_OWNER = "trade_promotion_accountant"
+# History cannot teach this tolerance; it is stated policy (tpa.policy.DRIFT_TOLERANCE_PCT).
 
 
 def check_redemption(cur: psycopg.Cursor, program_id: str, origin: str, as_of: datetime) -> Hit | None:

@@ -100,6 +100,28 @@ def straddles_quarter_end(start: date | None, end: date | None) -> bool:
     return bool(start and end) and quarter_of(start) != quarter_of(end)
 
 
+def activity_share(claim_start: date | None, claim_end: date | None, start: date, end: date) -> Decimal:
+    """The part of a claim whose activity days fall in [start, end]: how a straddle is allocated.
+    A claim without dates sits wholly in its claimed period."""
+    if not (claim_start and claim_end):
+        return Decimal("1")
+    days = (claim_end - claim_start).days + 1
+    inside = (min(end, claim_end) - max(start, claim_start)).days + 1
+    return Decimal(max(inside, 0)) / Decimal(days)
+
+
+def split_by_activity(amount: Decimal, claim_start: date, claim_end: date,
+                      origins: list[tuple[date, date]]) -> list[Decimal]:
+    """`amount` over consecutive origin months by activity days, to the cent. The last share takes
+    the remainder, so the shares always sum to the amount."""
+    shares, left = [], amount
+    for i, (start, end) in enumerate(origins):
+        share = left if i == len(origins) - 1 else money(amount * activity_share(claim_start, claim_end, start, end))
+        left -= share
+        shares.append(share)
+    return shares
+
+
 NICE_STEPS = (Decimal("1"), Decimal("2.5"), Decimal("5"))
 
 

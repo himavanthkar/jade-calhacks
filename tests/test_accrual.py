@@ -65,3 +65,10 @@ def test_rates_read_cleanly():
     assert str(rate(Decimal("3.800000"))) == "3.80"
     assert str(rate(Decimal("0.920000"))) == "0.92"
     assert str(rate(Decimal("0.0035"))) == "0.0035"
+
+
+def test_activity_split_to_the_cent():
+    from tpa.accrual import split_by_activity
+    shares = split_by_activity(Decimal("100.01"), date(2026, 3, 28), date(2026, 4, 6),
+                               [(date(2026, 3, 1), date(2026, 3, 31)), (date(2026, 4, 1), date(2026, 4, 30))])
+    assert shares == [Decimal("40.00"), Decimal("60.01")]          # 4 days / 6 days; the remainder lands last

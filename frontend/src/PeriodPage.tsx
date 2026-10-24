@@ -3,6 +3,9 @@ import { apiMode } from './api'
 import type { Period, Metrics, TradePromotionApi, Finding } from './api'
 import './PeriodPage.css'
 import JournalEntries from './JournalEntries'
+import VerificationGates from './VerificationGates'
+import FluxReview from './FluxReview'
+import RestatementComparison from './RestatementComparison'
 const periodTabs = ['Period Status', 'Journal Entries', 'Verification Gates', 'Restatement Comparison', 'Flux & Close Review'] as const
 const names = {WMT:'Walmart', COST:'Costco', KR:'Kroger'}
 const money = (v: string | null) => v == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v))
@@ -23,11 +26,11 @@ export default function PeriodPage({period, metrics, client, tab, onTab, error, 
   <nav className="period-tabs" aria-label="Period views">{periodTabs.map(t=><button key={t} aria-current={tab===t?'page':undefined} className={tab===t?'selected':''} onClick={()=>{onTab(t);setDetail('')}}>{t}{t==='Restatement Comparison'&&<span>{restatements.length}</span>}</button>)}</nav>
   {(error||actionError)&&<div className="error" role="alert">{error||actionError} <button onClick={onRetry}>Refresh</button></div>}
   {!period?<p role="status">{error?'Unable to load period.':'Loading period records…'}</p>:<>
-  {tab !== 'Journal Entries' && <section className="period-summary"><div><span>Period status</span><strong className={period.state==='CLOSED'?'green':'review'}>● {human(period.state.toLowerCase())}</strong></div><div><span>Autonomy</span><strong>{metrics?.autonomy==null?'—':`${(metrics.autonomy*100).toFixed(1)}%`}</strong></div><div><span>Recorded restatement</span><strong className="review">{restatements.length===1?money(restatements[0].amount):`${restatements.length} findings`}</strong></div><div><span>Verification gates</span><strong>{gates.filter(g=>g.passed).length} of {gates.length} passed</strong></div></section>}
+  {tab === 'Period Status' && <section className="period-summary"><div><span>Period status</span><strong className={period.state==='CLOSED'?'green':'review'}>● {human(period.state.toLowerCase())}</strong></div><div><span>Autonomy</span><strong>{metrics?.autonomy==null?'—':`${(metrics.autonomy*100).toFixed(1)}%`}</strong></div><div><span>Recorded restatement</span><strong className="review">{restatements.length===1?money(restatements[0].amount):`${restatements.length} findings`}</strong></div><div><span>Verification gates</span><strong>{gates.filter(g=>g.passed).length} of {gates.length} passed</strong></div></section>}
   {tab==='Period Status'&&<div className="period-columns"><section><h2>Findings by customer</h2>{period.customers.map(c=>{const findings=period.findings.filter(f=>f.customer_id===c.customer_id);const unresolved=findings.filter(f=>f.state==='open'||f.state==='escalated');return <div key={c.customer_id}><button className="customer-row" aria-expanded={expanded===c.customer_id} onClick={()=>setExpanded(expanded===c.customer_id?'':c.customer_id)}><b className="customer-mark">{names[c.customer_id][0]}</b><span><strong>{names[c.customer_id]}</strong><small>{findings.length} findings · {unresolved.length} open</small></span><b className={unresolved.length?'review':'green'}>● {human(c.state.toLowerCase())}</b></button>{expanded===c.customer_id&&<div className="customer-findings">{findingList(findings)}</div>}</div>})}</section><section><h2>Verification Gates</h2>{gateList}</section></div>}
-  {tab==='Verification Gates'&&<section className="period-tab-content"><h2>Verification Gates</h2>{gateList}</section>}
+  {tab==='Verification Gates'&&<VerificationGates period={period}/>}
   {tab==='Journal Entries'&&<JournalEntries postings={period.postings} client={client}/>}
-  {tab==='Restatement Comparison'&&<section className="period-tab-content"><h2>Restatement Comparison</h2>{findingList(restatements)}{period.postings.filter(p=>p.restates).map(p=><article className="restatement-line" key={p.id}><strong>{p.restates} → {p.id}</strong><p>{p.memo}</p><small>Debit {money(p.debit)} · Credit {money(p.credit)} · {p.decision_time}</small></article>)}</section>}
-  {tab==='Flux & Close Review'&&<section className="period-tab-content"><h2>Flux &amp; Close Review</h2><div className="close-customers">{period.customers.map(c=><article key={c.customer_id}><strong>{names[c.customer_id]} · {c.state}</strong><p>{c.signed_by?`Signed by ${c.signed_by} · ${c.signed_at}`:'No sign-off recorded'}</p></article>)}</div>{period.flux.map(f=><article className="restatement-line" key={f.id}><h3>{f.account}</h3><p>{f.narrative}</p><small>Prior {money(f.prior_balance)} → Current {money(f.current_balance)} · Change {f.pct_change==null?'—':`${Number(f.pct_change)}%`}</small></article>)}</section>}
+  {tab==='Restatement Comparison'&&<RestatementComparison period={period} client={client}/>}
+  {tab==='Flux & Close Review'&&<FluxReview flux={period.flux} client={client}/>}
   </>}{detail&&<div className="period-evidence" role="region" aria-label="Journal evidence"><button onClick={()=>setDetail('')}>Close evidence</button><pre>{detail}</pre></div>}</main>
 }

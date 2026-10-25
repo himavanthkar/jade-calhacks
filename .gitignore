@@ -6,3 +6,6 @@ data/
 .local/
 .env
 .DS_Store
+
+# local research notes, not part of the docs
+.research/

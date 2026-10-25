@@ -4,7 +4,7 @@ Source of truth for every coding agent working in this repo (Claude Code, Codex,
 
 ## Project
 
-Trade promotion autonomy — Cal Hacks 13.0, Hyphenate track. An autonomous system that fills the trade promotion accountant and deduction analyst seats: accrue on shipment, match deductions, clear or dispute, restate closed periods, and package the close for sign-off. `spec.md` is the build spec; `README.md` has setup and layout.
+Trade promotion autonomy — Cal Hacks 13.0, Hyphenate track. An autonomous system that fills the trade promotion accountant and deduction analyst seats: accrue on shipment, match deductions, clear or dispute, restate closed periods, and package the close for sign-off. `spec.md` is the build spec; `docs/` has setup, architecture and the API (`docs/README.md` indexes it).
 
 ## Commands
 

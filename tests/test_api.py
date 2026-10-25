@@ -77,6 +77,22 @@ def test_explain_and_ask(api):
     assert api.post("/api/ask", json={"question": "hello?"}).json()["chains"] == []
 
 
+def test_ask_defends_calls_that_posted_nothing(api):
+    """A judge asks about decisions with no journal line: a blocked approval, a card, a customer's close."""
+    ask = lambda q: api.post("/api/ask", json={"question": q}).json()
+    sod = next(f for f in api.get("/api/period/2026-01").json()["findings"] if f["control_id"] == "CTL-SOD")
+    traced = ask(f"Why did you raise {sod['id']}?")
+    assert traced["chains"][0]["entry_id"] == sod["id"]
+    assert traced["chains"][0]["steps"][0]["text"].startswith("CTL-SOD")
+    card = api.get("/api/escalations").json()[0]
+    assert ask(f"What happened with {card['id']}?")["chains"][0]["entry_id"] == card["finding_id"]
+    assert sod["id"] in ask("Can the sales lead approve his own claim?")["answer"]
+    assert ask("What is real and what is simulated?")["answer"].startswith("Real: General Mills")
+    assert "docs/proof.md" in ask("Show me something you got wrong")["answer"]
+    assert "Kroger" in ask("Why is Kroger blocked?")["answer"]
+    assert "Nobody has overruled" in ask("What if the controller says no?")["answer"]
+
+
 def test_metrics(api):
     m = api.get("/api/metrics?as_of=month-1").json()
     assert m["as_of"] == "2026-01" and 0 <= m["recall"] <= 1

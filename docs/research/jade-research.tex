@@ -6,7 +6,8 @@
 \usepackage[margin=0.9in]{geometry}
 \usepackage{newtxtext,newtxmath}
 \usepackage{booktabs,multirow,microtype}
-\usepackage[hidelinks]{hyperref}
+\usepackage{url}\usepackage[hidelinks]{hyperref}
+\Urlmuskip=0mu plus 1mu
 \usepackage{titlesec}
 \renewcommand{\thesection}{\Roman{section}}\renewcommand{\thesubsection}{\thesection-\Alph{subsection}}
 \titleformat{\section}{\normalfont\large\scshape\centering}{\thesection.}{0.5em}{}
@@ -26,7 +27,7 @@
 
 \begin{abstract}
 JADE fills two finance seats at a consumer packaged goods manufacturer: the trade promotion accountant
-and the deduction analyst. It accrues promotional obligations on shipment as contra-revenue (ASC 606),
+and the deduction analyst. It accrues promotional obligations on shipment as contra-revenue (ASC 606~\cite{asc606-cpc,asc606-vc}),
 matches retailer deductions to programs, clears what the agreement supports, disputes what it does not,
 restates closed months when terms change, and packages the close for a person to sign. Every number is
 computed by code into an insert-only, bitemporal ledger; a language model only drafts wording. We
@@ -39,13 +40,14 @@ raises no false alarm on audited figures.
 \end{abstract}
 
 \section{Problem}
-Trade spend is the second-largest line on a consumer packaged goods income statement after cost of goods.
+Trade spend is the second-largest line on a consumer packaged goods income statement after cost of goods,
+about 20\% of gross sales~\cite{strategyand}.
 General Mills sold \$18.42B in fiscal 2026, 22\% of it to Walmart, and carried \$493M of accrued trade and
-coupon promotion liabilities at year end, which its 10-K names as a critical accounting estimate. The
+coupon promotion liabilities at year end, which its 10-K names as a critical accounting estimate~\cite{gis26}. The
 manufacturer books what it owes when the truck leaves and learns what it really owed months later, when
 the retailer deducts it from a payment, often at a different rate and with backup that does not tie.
 When the estimate trues up, the quarter moves: trade expense timing took 13 points off Q4 adjusted
-operating profit growth in FY2025 and added 7 points in FY2026.
+operating profit growth in FY2025 and added 7 points in FY2026~\cite{gis-q4-25,gis-q4-26}.
 
 Deduction-level data is never public, on either side of the trade. That shapes the evaluation: the
 transaction-level behaviour is tested on seeded books with an answer key (Sections~\ref{sec:planted}
@@ -60,7 +62,9 @@ agreement cannot settle becomes a card for the person who owns the decision, wit
 person's answer becomes a precedent, reused for the same situation up to the amount approved.
 Five verifiability gates (journals balance, reversals mirror, no stale accruals, claims inside their
 windows, nothing cleared beyond what was accrued) block a period rather than warn. Segregation of duties is
-a capability check that throws: the person who negotiated a deal cannot approve its money.
+a capability check that throws: the person who negotiated a deal cannot approve its money. Settlement follows
+the trade allowance and deduction workflow of commercial ERPs~\cite{msft} and keeps credit-loss exposure
+(ASC 326~\cite{asc326}) apart from promotional liabilities.
 
 \section{Evaluation method}
 \subsection{Seeded books and the answer key}
@@ -89,16 +93,16 @@ demo are scored apart, since the key never planted them.
 
 \subsection{Generalisation and reliability}
 The same generator with seeds 42 and 2024, which were never developed against, places the same error types
-differently. This shows the system is not fitted to one answer key; it does not show it would catch an error
-type never planted. Reliability is measured as pass\textasciicircum{}$k$: the full year is run $k=3$ times
+differently. Holdouts are sized to the claim~\cite{kapoor}: this shows the system is not fitted to one answer key; it does not show it would catch an error
+type never planted. Reliability is measured as pass\textasciicircum{}$k$~\cite{taubench}, the chance that all $k$ tries succeed: the full year is run $k=3$ times
 from the same seed and the ledger and decision hashes must be identical.
 
 \subsection{Refusal on real data}
 \label{sec:escalating-method}
 An autonomous accountant's worst failure is acting on input it should not trust. We run real public text
 through the two readers that turn documents into source rows: 3,000 business emails
-(\texttt{corbt/enron-emails}) and 1,996 spam and ham emails (\texttt{SetFit/enron\_spam}) through the mail
-reader, and 102 commercial contracts from CUAD (\texttt{chenghao/cuad\_qa}), wrapped as amendments, through
+(\texttt{corbt/enron-emails}~\cite{hf-enron}) and 1,996 spam and ham emails (\texttt{SetFit/enron\_spam}~\cite{hf-spam}) through the mail
+reader, and 102 commercial contracts from CUAD~\cite{cuad} (\texttt{chenghao/cuad\_qa}~\cite{hf-cuad}), wrapped as amendments, through
 the agreement reader. The pass condition is zero actions and zero extracted terms. We also reworded 28
 deduction notices by hand to test that the mail reader holds what it cannot parse instead of guessing.
 
@@ -106,7 +110,7 @@ deduction notices by hand to test that the mail reader holds what it cannot pars
 \label{sec:backtest-method}
 The one trade promotion number that is public is the year-end liability. \texttt{tpa/backtest.py} walks
 forward one fiscal year-end close at a time over FY2021--FY2026, using figures quoted from General Mills'
-10-K filings on SEC EDGAR (\texttt{tpa/filings.py}). At each close an estimator sees only the 10-Ks filed
+10-K filings on SEC EDGAR, CIK 0000040704~\cite{gis21,gis22,gis23,gis24,gis25,gis26} (\texttt{tpa/filings.py}). At each close an estimator sees only the 10-Ks filed
 before that year's own 10-K, plus the year's net sales, which the company knows at its close; the estimate
 is then scored against the liability the 10-K reported. Four estimators:
 \begin{itemize}\itemsep0pt
@@ -264,5 +268,31 @@ The tolerances used are company policy settings, not GAAP requirements.
 \texttt{make backtest} \quad Tables V and VI, no database needed\\
 \texttt{tectonic docs/research/jade-research.tex} \quad this paper
 \end{flushleft}
+
+\section*{References}
+\begingroup\small
+\renewcommand{\refname}{}\vspace{-24pt}
+\begin{thebibliography}{99}\setlength{\itemsep}{1pt}
+\bibitem{gis26} General Mills, Inc., Form 10-K for the fiscal year ended May 31, 2026, filed 2026-07-01, SEC accession 0001628280-26-046466. \url{https://www.sec.gov/Archives/edgar/data/40704/000162828026046466/gis-20260531.htm}
+\bibitem{gis25} General Mills, Inc., Form 10-K, fiscal 2025, filed 2025-06-26, accession 0001193125-25-147079. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312525147079/d938443d10k.htm}
+\bibitem{gis24} General Mills, Inc., Form 10-K, fiscal 2024, filed 2024-06-26, accession 0001193125-24-168943. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312524168943/}
+\bibitem{gis23} General Mills, Inc., Form 10-K, fiscal 2023, filed 2023-06-28, accession 0001193125-23-177500. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312523177500/}
+\bibitem{gis22} General Mills, Inc., Form 10-K, fiscal 2022, filed 2022-06-30, accession 0001193125-22-185257. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312522185257/}
+\bibitem{gis21} General Mills, Inc., Form 10-K, fiscal 2021, filed 2021-06-30, accession 0001193125-21-204830; fiscal 2020, filed 2020-07-02, accession 0001193125-20-186469. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312521204830/}
+\bibitem{gis-q4-25} General Mills, Inc., Q4 fiscal 2025 earnings release, Form 8-K Ex.~99, 2025-06-25, accession 0001193125-25-146132. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312525146132/}
+\bibitem{gis-q4-26} General Mills, Inc., Q4 fiscal 2026 earnings release, Form 8-K Ex.~99, 2026-07-01, accession 0001628280-26-046337. \url{https://www.sec.gov/Archives/edgar/data/40704/000162828026046337/}
+\bibitem{strategyand} Strategy\& (PwC), ``Zero-based trade for CPG leaders,'' 2017. \url{https://www.strategyand.pwc.com/gx/en/insights/2017/zero-based-trade-for-cpg-leaders/zero-based-trade-for-cpg-leaders.pdf}
+\bibitem{asc606-cpc} Deloitte, \emph{Roadmap: Revenue Recognition}, \S6.6, Consideration payable to a customer (ASC 606-10-32-25 to 32-27). \url{https://dart.deloitte.com/USDART/home/codification/revenue/asc606-10/roadmap-revenue-recognition/chapter-6-step-3-determine-transaction/6-6-consideration-payable-a-customer}
+\bibitem{asc606-vc} Deloitte, \emph{Roadmap: Revenue Recognition}, \S6.3, Variable consideration (ASC 606-10-32-5 to 32-13). \url{https://dart.deloitte.com/USDART/home/codification/revenue/asc606-10/roadmap-revenue-recognition/chapter-6-step-3-determine-transaction/6-3-variable-consideration}
+\bibitem{asc326} Deloitte, \emph{Roadmap: Current Expected Credit Losses}, \S5.2, Trade receivables and contract assets (ASC 326). \url{https://dart.deloitte.com/USDART/home/codification/assets/32x/asc326-10/roadmap-credit-losses-cecl/chapter-5-application-cecl-model-off/5-2-trade-receivables-contract-assets}
+\bibitem{msft} Microsoft, ``Trade allowance management and deduction settlement,'' Dynamics 365 Supply Chain Management documentation. \url{https://learn.microsoft.com/en-us/dynamics365/supply-chain/sales-marketing/trade-allowance}
+\bibitem{taubench} S.~Yao, N.~Shinn, P.~Razavi, K.~Narasimhan, ``$\tau$-bench: A benchmark for tool-agent-user interaction in real-world domains,'' arXiv:2406.12045, 2024.
+\bibitem{kapoor} S.~Kapoor, B.~Stroebl, Z.~S.~Siegel, N.~Nadgir, A.~Narayanan, ``AI agents that matter,'' arXiv:2407.01502, 2024.
+\bibitem{cuad} D.~Hendrycks, C.~Burns, A.~Chen, S.~Ball, ``CUAD: An expert-annotated NLP dataset for legal contract review,'' NeurIPS Datasets and Benchmarks, arXiv:2103.06268, 2021.
+\bibitem{hf-cuad} \texttt{chenghao/cuad\_qa}, Hugging Face dataset. \url{https://huggingface.co/datasets/chenghao/cuad_qa}
+\bibitem{hf-enron} \texttt{corbt/enron-emails}, Hugging Face dataset (the Enron email corpus). \url{https://huggingface.co/datasets/corbt/enron-emails}
+\bibitem{hf-spam} \texttt{SetFit/enron\_spam}, Hugging Face dataset. \url{https://huggingface.co/datasets/SetFit/enron_spam}
+\end{thebibliography}
+\endgroup
 
 \end{document}

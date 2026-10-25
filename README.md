@@ -287,7 +287,7 @@ script with timings and voice-over is in [Demo and close exports](docs/jade-demo
 
 **Paper:** [JADE: Evaluating an Autonomous Trade Promotion Accountant](docs/research/jade-research.pdf)
 ([Google Drive](https://drive.google.com/file/d/1G2cI9gnatn7NC0VNsRNSh0VsTwdNWej0/view), [LaTeX source](docs/research/jade-research.tex)): how the evals and the 10-K backtest
-were run, every results table, and the limitations.
+were run, every results table, the limitations, and sources (10-K filings, ASC guidance, datasets, papers).
 
 50 errors are planted in 24 months of books, with an answer key. JADE is scored on what it finds.
 

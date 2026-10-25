@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  📄 <b>Paper:</b> <a href="docs/research/jade-research.pdf"><i>JADE: An Autonomous Accountant for Trade Promotions at General Mills</i></a>
+</p>
+
+<p align="center">
   <a href="docs/getting-started.md">Getting started</a> &nbsp;·&nbsp;
   <a href="docs/architecture.md">Architecture</a> &nbsp;·&nbsp;
   <a href="docs/research/jade-research.pdf">Research</a> &nbsp;·&nbsp;
@@ -285,8 +289,9 @@ script with timings and voice-over is in [Demo and close exports](docs/jade-demo
 
 ## Research
 
-**Paper:** [JADE: Evaluating an Autonomous Trade Promotion Accountant](docs/research/jade-research.pdf)
-([Google Drive](https://drive.google.com/file/d/1G2cI9gnatn7NC0VNsRNSh0VsTwdNWej0/view), [LaTeX source](docs/research/jade-research.tex)): how the evals and the 10-K backtest
+### Paper: [JADE: An Autonomous Accountant for Trade Promotions at General Mills](docs/research/jade-research.pdf)
+
+[PDF](docs/research/jade-research.pdf) · [Google Drive](https://drive.google.com/file/d/1G2cI9gnatn7NC0VNsRNSh0VsTwdNWej0/view) · [LaTeX source](docs/research/jade-research.tex). How the evals and the 10-K backtest
 were run, every results table, the limitations, and sources (10-K filings, ASC guidance, datasets, papers).
 
 50 errors are planted in 24 months of books, with an answer key. JADE is scored on what it finds.

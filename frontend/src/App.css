@@ -43,3 +43,20 @@
 .sidebar-bottom p{font-size:10px;line-height:14px}
 .sidebar-bottom>span{font-size:13px;line-height:15px}
 @media(min-width:701px) and (max-width:1000px){.sidebar{width:205px;flex-basis:205px}}
+
+/* Keep long period labels and keyboard focus within the sidebar. */
+.sidebar .subnav{grid-template-columns:minmax(0,1fr)}
+.sidebar .subnav button{min-width:0;width:100%;letter-spacing:0}
+.sidebar .subnav button:focus:not(:focus-visible){outline:none}
+.sidebar .subnav button:focus-visible{outline:2px solid #6f1f1b;outline-offset:-2px}
+
+@media(min-width:701px){
+  .sidebar{width:232px;flex-basis:232px;padding-inline:14px}
+  .sidebar .subnav{padding-right:8px}
+  .sidebar .subnav button{padding:8px 6px!important}
+}
+
+.sidebar .subnav[hidden]{display:none}
+.nav-item .chevron{display:inline-block;transition:transform 180ms ease;transform:rotate(0deg)}
+.nav-item .chevron.expanded{transform:rotate(90deg)}
+@media(prefers-reduced-motion:reduce){.nav-item .chevron{transition:none}}

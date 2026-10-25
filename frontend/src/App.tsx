@@ -3,6 +3,7 @@ import { api, apiMode } from './api'
 import { createMockApi } from './api/mock'
 import type { Period, Metrics, Control, Escalation } from './api'
 import RecordWorkspace from './RecordWorkspace'
+import ControlsLibrary from './ControlsLibrary'
 import PeriodPage from './PeriodPage'
 import InterrogationPage from './InterrogationPage'
 import EscalationInbox from './EscalationInbox'
@@ -23,6 +24,7 @@ export default function App() {
   const [retry, setRetry] = useState(0)
   const [view, setView] = useState('Overview')
   const [periodTab, setPeriodTab] = useState('Period Status')
+  const [periodNavOpen, setPeriodNavOpen] = useState(false)
   const [drawer, setDrawer] = useState('')
   const [query, setQuery] = useState('')
   useEffect(() => {
@@ -48,15 +50,15 @@ export default function App() {
   const gates = Object.values(data?.period.gates ?? {})
   const monthIndex = data ? Number(data.period.period.slice(5)) : 8
   const dateLabel = data ? new Date(`${data.period.period}-01T12:00:00`).toLocaleDateString('en-US', {month:'long',year:'numeric'}) : 'August 2026'
-  const nav = (name: string, asset: string) => <button className={`nav-item ${view === name ? 'active' : ''}`} onClick={() => setView(name)}>{icon(asset)}<span>{name}</span>{name !== 'Overview' && <span className="chevron">›</span>}</button>
+  const nav = (name: string, asset: string) => <button className={`nav-item ${view === name ? 'active' : ''}`} aria-expanded={name === 'Month & Period' ? periodNavOpen : undefined} aria-controls={name === 'Month & Period' ? 'period-navigation' : undefined} onClick={() => {setView(name);if(name === 'Month & Period')setPeriodNavOpen(open=>!open)}}>{icon(asset)}<span>{name}</span>{name === 'Month & Period' && <span aria-hidden="true" className={`chevron ${periodNavOpen ? 'expanded' : ''}`}>›</span>}</button>
   return <div className={`app-shell ${view === 'Month & Period' ? 'period-active' : ''}`}>
     <aside className="sidebar"><a href="#" className="brand" onClick={e => {e.preventDefault();setView('Overview')}}><b className="brand-mark">J</b><span><strong>JADE</strong></span></a>
       <div className="organization"><b>GM</b><div><strong>General Mills</strong><small>US Retail Finance</small></div>{icon('imgIcon4')}</div>
-      <p className="nav-label">WORKSPACE</p><nav>{nav('Overview', 'imgIcon5')}{nav('Month & Period','imgIcon6')}<div className="subnav">{['Period Status','Journal Entries','Verification Gates','Restatement Comparison','Flux & Close Review'].map(x=><button key={x} aria-current={view==='Month & Period'&&periodTab===x?'page':undefined} onClick={()=>{setView('Month & Period');setPeriodTab(x)}}>{x}</button>)}</div>{nav('Controls Library','imgIcon8')}{nav('Escalation Inbox','imgIcon9')}{nav('Interrogation','imgIcon10')}</nav>
+      <p className="nav-label">WORKSPACE</p><nav>{nav('Overview', 'imgIcon5')}{nav('Month & Period','imgIcon6')}<div id="period-navigation" className="subnav" hidden={!periodNavOpen}>{['Period Status','Journal Entries','Verification Gates','Restatement Comparison','Flux & Close Review'].map(x=><button key={x} aria-current={view==='Month & Period'&&periodTab===x?'page':undefined} onClick={()=>{setView('Month & Period');setPeriodTab(x)}}>{x}</button>)}</div>{nav('Controls Library','imgIcon8')}{nav('Escalation Inbox','imgIcon9')}{nav('Interrogation','imgIcon10')}</nav>
       <div className="sidebar-bottom"><small>AUTONOMY STATUS</small><strong><i/> Month {monthIndex} · {data?.period.state.toLowerCase() ?? 'loading'}</strong><p>Evidence from captured API responses</p><span>{apiMode === 'mock' ? 'Seeded demo · Spec v1.0' : 'Connected API'}</span></div>
     </aside>
     <div className="main-shell"><header className="topbar"><form className="search" onSubmit={e=>{e.preventDefault();setDrawer(query ? `Search: ${query}` : 'Search records')}}>{icon('imgIcon')}<input aria-label="Search records" placeholder="Search programs, controls, evidence…" value={query} onChange={e=>setQuery(e.target.value)}/></form><div className="top-actions"><div className="current-month"><small>MONTH {monthIndex}</small><span>{dateLabel}</span></div><button className="step-button" onClick={()=>setDrawer('Month & Period')}>Step month</button><button className="icon-button" aria-label="Open escalation inbox" onClick={()=>setView('Escalation Inbox')}>{icon('imgIcon3')}</button><span className="avatar" title="Demo reviewer">AM</span></div></header>
-    {view === 'Escalation Inbox' ? <EscalationInbox client={client} onUpdated={()=>setRetry(n=>n+1)}/> : view === 'Interrogation' ? <InterrogationPage client={client}/> : view === 'Month & Period' ? <PeriodPage period={data?.period} metrics={data?.metrics} client={client} tab={periodTab} onTab={setPeriodTab} error={error} onRetry={()=>setRetry(n=>n+1)}/> : view !== 'Overview' ? <div className="records-view"><button onClick={()=>setView('Overview')}>← Overview</button><h1>{view}</h1><RecordWorkspace initialView={view}/></div> : <main className="overview">
+    {view === 'Controls Library' ? <ControlsLibrary controls={data?.controls} period={data?.period} client={client} error={error} onRetry={()=>setRetry(n=>n+1)}/> : view === 'Escalation Inbox' ? <EscalationInbox client={client} onUpdated={()=>setRetry(n=>n+1)}/> : view === 'Interrogation' ? <InterrogationPage client={client}/> : view === 'Month & Period' ? <PeriodPage period={data?.period} metrics={data?.metrics} client={client} tab={periodTab} onTab={setPeriodTab} error={error} onRetry={()=>setRetry(n=>n+1)}/> : view !== 'Overview' ? <div className="records-view"><button onClick={()=>setView('Overview')}>← Overview</button><h1>{view}</h1><RecordWorkspace initialView={view}/></div> : <main className="overview">
       <div className="hero-bars" aria-hidden="true">{[119,130,142,152,161,169,177,187,198,209,219,227,229,226,217,203,188,172,158,146,137,129,121,114,106,99,94,92,95,101,110,121,133,144,155,166,180,196,215,237,260,281,299,313,321,324,324].map((height,i)=><i key={i} style={{height, left:`${(10+i*20.5)/975*100}%`}}/>)}</div>
       <div className="overview-heading"><div><p className="eyebrow">MONTH {monthIndex} · {dateLabel.toUpperCase()}</p><h1>JADE</h1><p>General Mills · US retail trade accounting</p></div><div className="heading-actions"><button onClick={()=>setView('Interrogation')}>{icon('imgIcon11')} Ask AI</button></div></div>
       {error && <div className="error" role="alert">{error} <button onClick={()=>setRetry(n=>n+1)}>Retry</button></div>}

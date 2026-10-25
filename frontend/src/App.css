@@ -105,3 +105,4 @@
 .sidebar .nav-item.active{background:#ecdcd0!important;color:#6f1f1b!important;border-left-color:transparent;border-radius:4px}
 
 .sidebar .nav-icon{display:block;width:15px;height:15px;flex-shrink:0;background-color:currentColor;mask-repeat:no-repeat;mask-position:center;mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:contain}
+.step-notice{margin:16px 30px;padding:14px;background:#faf6ef;border:1px solid #e6ddd3;font-size:12px;line-height:1.6}.step-notice button{margin:10px 8px 0 0}.topbar .step-button:disabled{opacity:.6;cursor:default}

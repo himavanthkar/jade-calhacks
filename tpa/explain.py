@@ -170,6 +170,33 @@ def decision(cur: psycopg.Cursor, finding_id: str) -> dict | None:
     return {"entry_id": f["id"], "head": head, "steps": steps, "memo": STATE.get(f["state"], f["state"])}
 
 
+def held(cur: psycopg.Cursor, ded_id: str) -> dict | None:
+    """A deduction no finding speaks for: where it sits on the books, and why nothing cleared it."""
+    d = one_row(cur, "SELECT * FROM deductions WHERE id = %s", (ded_id,))
+    if d is None:
+        return None
+    customer = one_row(cur, "SELECT name FROM customers WHERE id = %s", (d["customer_id"],))
+    pending = one_row(cur, """SELECT journal_id, decision_time FROM ledger_entries WHERE deduction_id = %s AND account = %s
+                              ORDER BY decision_time, id LIMIT 1""", (ded_id, Account.DEDUCTIONS_PENDING))
+    cited = one_row(cur, """SELECT id, payload ->> 'program_id' AS program_id FROM scenario_injections
+                            WHERE %s = ANY(created_ids)""", (ded_id,))
+    head = (f"{ded_id} · {customer['name'] if customer else d['customer_id']} · claims {d['claimed_period']} · "
+            f"{money(d['amount'])}")
+    if not pending:
+        return {"entry_id": ded_id, "head": head, "memo": "not yet processed",
+                "steps": [_step("inputs", f"{ded_id} lands {d['available_at']}; the engine meets it when that month runs")]}
+    source = (f"cites {cited['program_id']}, which is not a program on file" if cited and cited["program_id"] and not d["program_id"]
+              else f"reason code {d['reason_code']}, no program cited" if not d["program_id"] else f"program {d['program_id']}")
+    steps = [_step("rule", "Record every short payment; clear only what an agreement supports (rules 3, 4 and 8)"),
+             _step("inputs", f"{ded_id} for {money(d['amount'])}, {source}", [ded_id, cited and cited["id"]]),
+             _step("knew-at", f"{pending['decision_time']:%Y-%m-%d %H:%M}"),
+             _step("approved", f"recorded by {pending['journal_id']} into {Account.DEDUCTIONS_PENDING}: the receivable stays "
+                               "open; nothing is cleared, written off or reduced from revenue until it is matched. At each "
+                               "close the stale-accrual check pairs held deductions with open accruals",
+                   [pending["journal_id"]])]
+    return {"entry_id": ded_id, "head": head, "steps": steps, "memo": "held unmatched" if not d["program_id"] else "held"}
+
+
 def findings_for(cur: psycopg.Cursor, ref: str) -> list[str]:
     """The findings a deduction, finding or card id points to."""
     if ref.startswith("FN-"):
@@ -359,7 +386,10 @@ def ask(cur: psycopg.Cursor, question: str) -> dict:
     traced = {i for c in chains for s in c["steps"] for i in s["ids"]} | {c["entry_id"].rsplit("-", 1)[0] for c in chains}
     for ref in refs:
         if ref.startswith(("DD-", "FN-", "ESC-", "EV-")) and not any(ref in i for i in traced):
-            chains += [d for d in (decision(cur, f) for f in findings_for(cur, ref)) if d]
+            found = [d for d in (decision(cur, f) for f in findings_for(cur, ref)) if d]
+            if not found and ref.startswith("DD-"):
+                found = [h for h in [held(cur, ref)] if h]
+            chains += found
     chains = chains[:8]
     known = knowledge(cur, question)
     if not chains and not known:

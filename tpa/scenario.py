@@ -76,7 +76,9 @@ def _deduction(cur, p: dict, d: date, made: list[str]) -> None:
         raise ScenarioError(f"customer_id must be one of {', '.join(CUSTOMERS)}")
     program = p.get("program_id") and one_row(cur, "SELECT * FROM trade_programs WHERE id = %s", (p["program_id"],))
     if p.get("program_id") and not program:
-        raise ScenarioError(f"no program {p['program_id']}")
+        # A retailer citing a program we don't have is the matching problem, not bad input: it lands
+        # unmatched and the engine has to find it a home or hold it. The citation stays on the payload.
+        p["note"] = f"{p['program_id']} is not a program on file: the deduction lands unmatched"
     if program and program["customer_id"] != p["customer_id"]:
         raise ScenarioError(f"{program['id']} is {program['customer_id']}'s program, not {p['customer_id']}'s")
     claimed = p.get("claimed_period") or add_months(period_of(d), -1)
@@ -217,7 +219,8 @@ def inject(cur: psycopg.Cursor, kind: str, payload: dict, *, injected_by: str | 
     cur.execute("""INSERT INTO scenario_injections (id, kind, payload, created_ids, period, sim_date, injected_by)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)""", (sc, kind, json.dumps(payload, default=str), made, period, d,
                                                             injected_by))
-    return {"id": sc, "kind": kind, "period": period, "lands_on": d, "created_ids": made}
+    return {"id": sc, "kind": kind, "period": period, "lands_on": d, "created_ids": made,
+            **({"note": payload["note"]} if payload.get("note") else {})}
 
 
 def injected_ids(cur: psycopg.Cursor) -> set[str]:

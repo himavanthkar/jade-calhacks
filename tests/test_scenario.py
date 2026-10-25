@@ -108,3 +108,14 @@ def test_the_judges_scenario_is_scored_apart(session):
         m = metrics(cur, session["ds"].answer_key, "month-5")
     assert m["counts"]["scenario_findings"] >= 6
     assert m["precision"] == 1.0 and m["missed"] == []
+
+
+def test_a_claim_citing_a_program_we_dont_have_lands_unmatched(session):
+    """A judge's deduction under a made-up program is the matching problem, not bad input."""
+    r = session["client"].post("/api/scenario", json={"kind": "deduction", "injected_by": "judge", "payload": {
+        "customer_id": "KR", "program_id": "TP-9999", "amount": "250000", "day": 4}})
+    assert r.status_code == 200 and "not a program on file" in r.json()["note"]
+    (ded,) = r.json()["created_ids"]
+    with session["conn"].cursor() as cur:
+        cur.execute("SELECT program_id FROM deductions WHERE id = %s", (ded,))
+        assert cur.fetchone()[0] is None

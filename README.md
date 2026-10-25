@@ -35,15 +35,17 @@ person only when the agreement can't settle the question, and an answer, once gi
 
 ## Why General Mills
 
-![A Saturday-morning table: five white bowls of Honey Nut Cheerios, Lucky Charms, Trix, Cocoa Puffs and Cinnamon Toast Crunch with milk, a glass milk jug and an orange napkin on a cream backdrop.](docs/images/gm-saturday-morning.jpg)
+<p align="center">
+  <a href="docs/images/gm-since-1941.jpg"><img src="docs/images/gm-since-1941.jpg" width="32%" alt="Two vintage cereal boxes, CheeriOats from 1941 and a Wheaties Breakfast of Champions box, on a wooden counter beside a bowl of oat rings."></a>
+  <a href="docs/images/gm-saturday-morning.jpg"><img src="docs/images/gm-saturday-morning.jpg" width="32%" alt="A Saturday-morning table: five white bowls of Honey Nut Cheerios, Lucky Charms, Trix, Cocoa Puffs and Cinnamon Toast Crunch with milk, a glass milk jug and an orange napkin on a cream backdrop."></a>
+  <a href="docs/images/gm-after-school.jpg"><img src="docs/images/gm-after-school.jpg" width="32%" alt="An after-school snack spread: a plate of pizza rolls, one broken open, fruit snack rolls and fruit gummies, beside two oat granola bars on parchment."></a>
+</p>
 
 If you grew up in America, General Mills was probably at your breakfast table before you could read the box.
 Cheerios (first sold as CheeriOats in 1941) was the first finger food a lot of us picked up. Saturday mornings
 were Lucky Charms, Trix, Cocoa Puffs and Cinnamon Toast Crunch in front of cartoons; October was Count Chocula.
 After school came Fruit by the Foot, Gushers and Totino's Pizza Rolls, and a Nature Valley bar went in the
 backpack. Wheaties put athletes on the box and called itself the Breakfast of Champions.
-
-![An after-school snack spread: a plate of pizza rolls, one broken open, fruit snack rolls and fruit gummies, beside two oat granola bars on parchment.](docs/images/gm-after-school.jpg)
 
 Every one of those boxes reached the shelf through a retailer, and most were sold on a promise: a scan-back for
 every unit Walmart sells this quarter, a display fee for an end cap at Kroger, an allowance off every case
@@ -54,8 +56,6 @@ liabilities at year end, which its 10-K names as one of its critical accounting 
 true up, they move the reported quarter: trade expense timing added **7 points** to adjusted operating profit
 growth in Q4 fiscal 2026, after taking 2 to 3 points off net sales growth in the fourth quarters of the two
 years before.
-
-![Two vintage cereal boxes, CheeriOats from 1941 and a Wheaties Breakfast of Champions box, on a wooden counter beside a bowl of oat rings.](docs/images/gm-since-1941.jpg)
 
 The cereal is the same one we grew up on. The bookkeeping behind it still runs on spreadsheets and people
 chasing deductions. JADE takes those seats.
@@ -88,7 +88,9 @@ it. Correct then and correct now are both answers to the same query, run at two 
 
 ## Email as evidence
 
-![The controller's card for Walmart's $4.50 claim: the sales lead's email is quoted and flagged "Nothing signed: an email is not an amendment", beside the retailer's deduction notice with the lines JADE read from it.](docs/images/ui-email-card.jpg)
+<p align="center">
+  <a href="docs/images/ui-email-card.jpg"><img src="docs/images/ui-email-card.jpg" width="75%" alt="The controller's card for Walmart's $4.50 claim: the sales lead's email is quoted and flagged &quot;Nothing signed: an email is not an amendment&quot;, beside the retailer's deduction notice with the lines JADE read from it."></a>
+</p>
 
 Much of what decides a deduction never reaches the books: backup arrives as an attachment, a rate is
 "agreed" in an email, an amendment sits in someone's folder. JADE reads the deductions inbox (Gmail, through
@@ -101,13 +103,17 @@ last year's precedent disputes the difference. With it, the card goes to the con
 recommends a hold: an email is not an agreement, and the person who negotiated the deal can't approve its claim.
 When the signed amendment arrives, JADE reads it and restates September by $190,415.99.
 
-![The Integrations page: Gmail and SEC EDGAR feed the JADE engine, Claude drafts card wording only, and the engine writes to an insert-only Postgres ledger, the escalation inbox and the Excel close package. Retail Link and EDI 820 are drawn as planned.](docs/images/ui-integrations.jpg)
+<p align="center">
+  <a href="docs/images/ui-integrations.jpg"><img src="docs/images/ui-integrations.jpg" width="75%" alt="The Integrations page: Gmail and SEC EDGAR feed the JADE engine, Claude drafts card wording only, and the engine writes to an insert-only Postgres ledger, the escalation inbox and the Excel close package. Retail Link and EDI 820 are drawn as planned."></a>
+</p>
 
 `scripts/demo_mail.py run side-letter` plays it end to end. More in [Integrations](docs/integrations.md).
 
 ## Backtested on General Mills' real 10-Ks
 
-![The Backtest page: General Mills' trade promotion liability as a share of net sales from FY2011 to FY2026, and the estimate at each close against what the 10-K reported.](docs/images/ui-backtest.jpg)
+<p align="center">
+  <a href="docs/images/ui-backtest.jpg"><img src="docs/images/ui-backtest.jpg" width="75%" alt="The Backtest page: General Mills' trade promotion liability as a share of net sales from FY2011 to FY2026, and the estimate at each close against what the 10-K reported."></a>
+</p>
 
 Deduction-level data is never public, so what can be tested on real books is the estimate General Mills itself
 calls critical: the trade promotion liability at each year end. Walked forward, so no close sees its own 10-K:

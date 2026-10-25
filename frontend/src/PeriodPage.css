@@ -4,3 +4,5 @@
 .sign-off{margin:6px 0 10px 44px;background:#5b241d!important;color:#fff!important;border:0!important;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer}
 .sign-off:disabled{opacity:.5;cursor:not-allowed}
 .signed-by{display:block;margin:4px 0 10px 44px;font-size:11px;color:#21654a}
+
+.customer-mark{width:30px;height:30px;background:#fff;box-shadow:0 0 .6px #0004;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}.customer-mark .customer-logo{display:block;object-fit:contain;max-width:none;flex-shrink:0;transform:none}.customer-logo-WMT{width:27px;height:auto}.customer-logo-COST{width:40px;height:auto}.customer-logo-KR{width:48px;height:auto}

@@ -51,3 +51,20 @@
 @media(max-width:700px){.step-result{padding:0 16px}}
 .month-track .future span{background:white;color:#8c8c83;border:1px solid #d5d8cf}
 .impact button+button{margin-top:6px}
+
+/* Keep long period labels and keyboard focus within the sidebar. */
+.sidebar .subnav{grid-template-columns:minmax(0,1fr)}
+.sidebar .subnav button{min-width:0;width:100%;letter-spacing:0}
+.sidebar .subnav button:focus:not(:focus-visible){outline:none}
+.sidebar .subnav button:focus-visible{outline:2px solid #6f1f1b;outline-offset:-2px}
+
+@media(min-width:701px){
+  .sidebar{width:232px;flex-basis:232px;padding-inline:14px}
+  .sidebar .subnav{padding-right:8px}
+  .sidebar .subnav button{padding:8px 6px!important}
+}
+
+.sidebar .subnav[hidden]{display:none}
+.nav-item .chevron{display:inline-block;transition:transform 180ms ease;transform:rotate(0deg)}
+.nav-item .chevron.expanded{transform:rotate(90deg)}
+@media(prefers-reduced-motion:reduce){.nav-item .chevron{transition:none}}

@@ -146,6 +146,143 @@ Six layers, one agent owning one function. The full picture, with the sequence o
 map, is in [Architecture](docs/architecture.md); who may decide what is in
 [People and controls](docs/people-and-controls.md).
 
+## Walkthrough: Walmart's October close
+
+One month of trade promotion close, screen by screen, from the demo state (`scripts/demo_preview.sh`:
+January to September played, the October mail landed, October run). Each step names the close step it
+covers, where it happens in JADE, and the journal entry behind it.
+
+| Close step | JADE screen | Who |
+|---|---|---|
+| 0. Contract set-up | Setup | Once, at onboarding |
+| 1. Accrue on shipment (ASC 606 variable consideration, contra-revenue) | Close → Journal Entries | JADE |
+| 2. Deduction intake from email or remittance | Gmail → Integrations | JADE |
+| 3. Match and clear | Home | JADE |
+| 4. Exceptions the agreement can't settle | Home → Decisions | Analyst, controller |
+| 5. Change in estimate on a closed month | Decisions; Close → Restatement Comparison | Controller |
+| 6. Reconciliation and review | Close → Period Status, Flux | Close reviewer |
+| 7. Sign-off and the close binder | Close → Sign off; Close report | Close reviewer |
+
+### 1. Open Home
+
+Routine deductions are already matched and cleared. Three items wait on a person, each with JADE's
+recommendation.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step4-home.jpg"><img src="docs/jade-demo-and-close-exports/step4-home.jpg" width="75%" alt="Home: three waiting on you, three settled automatically, the queue with JADE's recommendation on each"></a>
+</p>
+
+### 2. Check the agreements (Setup → Read the agreements)
+
+Every trade agreement is read into terms, each citing its clause. TP-0214, Walmart's Cheerios scan-back, reads
+$4.50 a case from amendment AM-03. A contract missing a required term is refused, not guessed.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step1-agreements.jpg"><img src="docs/jade-demo-and-close-exports/step1-agreements.jpg" width="75%" alt="Setup, Read the agreements: TP-0214 at $4.50 a case from AM-03, the clause cited"></a>
+</p>
+
+### 3. A deduction arrives by email (Gmail → Integrations)
+
+Walmart's deduction notice, $60,003.00 against TP-0214 at $4.50 a case on 13,334 units, lands in the
+deductions inbox. JADE parses it by code; every field keeps the line it was read from, and the notice becomes
+a deduction and its claim backup. Nobody keys it.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step2-gmail-inbox.jpg"><img src="docs/jade-demo-and-close-exports/step2-gmail-inbox.jpg" width="49%" alt="Demo mailbox: Walmart's deduction notice, the sales lead's note and the signed amendment"></a>
+  <a href="docs/jade-demo-and-close-exports/step2-gmail-message.jpg"><img src="docs/jade-demo-and-close-exports/step2-gmail-message.jpg" width="49%" alt="The deduction notice: $60,003.00, TP-0214, $4.50 a case, 13,334 units"></a>
+</p>
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step3-parsed.jpg"><img src="docs/jade-demo-and-close-exports/step3-parsed.jpg" width="75%" alt="What JADE read from the notice, line by line, and the two cards it produced"></a>
+</p>
+
+*Ledger:* Dr 1250 Deductions pending resolution / Cr 1200 Accounts receivable, $60,003.00 (JE-1361).
+
+### 4. Segregation of duties (Answer as someone else → Walmart sales lead)
+
+The sales lead who negotiated TP-0214 tries to approve the catch-up. Refused: the controller owns the card,
+and the check is code that throws, not a policy reminder.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step5-sod.jpg"><img src="docs/jade-demo-and-close-exports/step5-sod.jpg" width="75%" alt="Answering as the Walmart sales lead is refused"></a>
+</p>
+
+### 5. Approve the restatement (controller)
+
+September closed at $4.20 a case; the signed rate is $4.50. The controller approves a **$190,415.99**
+catch-up. The original September entry stays as booked and the true-up posts beside it. The approval
+becomes precedent PR-0018.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step6-restatement.jpg"><img src="docs/jade-demo-and-close-exports/step6-restatement.jpg" width="49%" alt="The restatement card: Approve the restatement, the $190,415.99 catch-up"></a>
+  <a href="docs/jade-demo-and-close-exports/step6-approved.jpg"><img src="docs/jade-demo-and-close-exports/step6-approved.jpg" width="49%" alt="Approved, became precedent PR-0018"></a>
+</p>
+
+*Ledger:* Dr 4100 Trade promotion expense (contra-revenue) / Cr 2300 Accrued trade promotion liability,
+$190,415.99, posted to September, decided at the October close (JE-1396).
+
+### 6. Clear the $4.50 claim with a reason
+
+The claim arrived before the paperwork, with an email saying "paperwork to follow", so JADE recommended a
+hold. With AM-03 now on file, the controller picks *Customer's claimed rate*, types the reason, and decides.
+The reason becomes the precedent for the next claim like it.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step7-override.jpg"><img src="docs/jade-demo-and-close-exports/step7-override.jpg" width="75%" alt="The $4.50 claim: choose the customer's claimed rate, give the reason, decide"></a>
+</p>
+
+*Ledger:* Dr 2300 Accrued trade promotion liability / Cr 1250 Deductions pending resolution, $60,003.00
+(JE-1397): AR and the liability clear together.
+
+### 7. Release a stale accrual (Kroger)
+
+Kroger's May display accrual has had no claim for five months, past its claim lag. Last year's analysts
+released four like it; JADE recommends the same and the close reviewer agrees.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step8-kroger.jpg"><img src="docs/jade-demo-and-close-exports/step8-kroger.jpg" width="75%" alt="Kroger stale accrual: Release the accrual"></a>
+</p>
+
+*Ledger:* Dr 2300 Accrued trade promotion liability / Cr 4100 Trade promotion expense, $165,000.00 (JE-1398),
+in November, the open period.
+
+### 8. Sign off each customer (Close → Period Status)
+
+Sign-off re-runs five verifiability checks: journals balance, reversals mirror, no stale accruals, claims
+inside their windows, nothing cleared beyond what was accrued. Walmart and Costco sign. Kroger is blocked:
+the release posted to November, so October still carries a stale accrual. A failing check blocks the close;
+it doesn't warn.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step9-signoff.jpg"><img src="docs/jade-demo-and-close-exports/step9-signoff.jpg" width="49%" alt="Period status: Sign off Walmart, the five checks"></a>
+  <a href="docs/jade-demo-and-close-exports/step9-blocked.jpg"><img src="docs/jade-demo-and-close-exports/step9-blocked.jpg" width="49%" alt="Kroger blocked by the no-stale-accruals check"></a>
+</p>
+
+### 9. Hand on the close report (Close → Close report)
+
+Flux analysis with the journal lines behind every number, the analytical review against General Mills' 10-K
+(3.39% of net sales against 2.68% reported, within range), each decision with who made it and its precedent,
+the reconciliation per program, and the sign-offs. The PDF is
+[jade-close-2026-10.pdf](docs/jade-demo-and-close-exports/jade-close-2026-10.pdf), from
+`scripts/close_report.py 2026-10`.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step10-report.png"><img src="docs/jade-demo-and-close-exports/step10-report.png" width="75%" alt="The October close report: flux, analytical review, decisions, reconciliation, sign-off"></a>
+</p>
+
+### 10. Prove it before it goes live (Proof)
+
+Seven checks must pass before JADE touches real books, then rollout is gated: shadow, then 25%, 50% and
+100% of deduction volume.
+
+<p align="center">
+  <a href="docs/jade-demo-and-close-exports/step11-evals.jpg"><img src="docs/jade-demo-and-close-exports/step11-evals.jpg" width="49%" alt="Proof page: the seven checks, all passing, and the gated rollout"></a>
+  <a href="docs/jade-demo-and-close-exports/rollout.png"><img src="docs/jade-demo-and-close-exports/rollout.png" width="49%" alt="Rollout at General Mills: shadow, 25%, 50%, 100% of deduction volume, each phase gated"></a>
+</p>
+
+The mailbox images are rendered from the scenario's own .eml files by `scripts/gmail_preview.py` and labelled
+as a demo mailbox; with Gmail connected (`gws auth login -s gmail`) the real inbox shows instead. The full
+script with timings and voice-over is in [Demo and close exports](docs/jade-demo-and-close-exports.md).
+
 ## Proof
 
 50 errors are planted in 24 months of books, with an answer key. JADE is scored on what it finds.
@@ -157,6 +294,18 @@ map, is in [Architecture](docs/architecture.md); who may decide what is in
 
 In the played year, **37 of 40 repeat situations settled by precedent** without asking; the 3 asked again
 were each larger than any amount approved so far.
+
+<p align="center">
+  <a href="docs/images/evals/table-learning.png"><img src="docs/images/evals/table-learning.png" width="49%" alt="Table I, self-learning: of 40 repeat situations, 37 (92.5%) settled silently by precedent and 3 were asked again, each because the amount exceeded what a person had approved."></a>
+  <a href="docs/images/evals/table-improving.png"><img src="docs/images/evals/table-improving.png" width="49%" alt="Table II, self-improving: planted errors scored monthly; 42 of 42 caught by month 12, precision 1.000 every month except 0.857 in month 7, recall 1.000 throughout."></a>
+</p>
+<p align="center">
+  <a href="docs/images/evals/table-escalating.png"><img src="docs/images/evals/table-escalating.png" width="49%" alt="Table III, self-escalating: 3,000 Enron emails, 1,996 Enron spam and 102 CUAD contracts from Hugging Face, none acted on; 28 reworded deduction notices, 25 parsed then 28 after two parser fixes."></a>
+  <a href="docs/images/evals/table-backtest.png"><img src="docs/images/evals/table-backtest.png" width="49%" alt="Table IV, General Mills 10-K backtest FY2021 to FY2026: carrying last year forward misses by 9.4% mean ($41.7M MAE), the annual ratio to net sales by 12.3%, the Q4 ratios by 14.4%."></a>
+</p>
+
+Self-learning, self-improving, self-escalating, and the real-books backtest: the four eval tables, scored on seed 1337 and
+on real public data.
 
 **What is real:** General Mills, its customers, and its FY2025 and FY2026 10-K figures from SEC EDGAR
 (net sales $18.42B, Walmart 22% of it, accrued trade and coupon promotion liabilities $493M), each quoted
@@ -194,6 +343,7 @@ Python · FastAPI · Postgres 16 (bitemporal, insert-only ledger) · Claude · R
 | [Integrations](docs/integrations.md) | the Gmail deductions inbox and the live email demo |
 | [Presenting the data](docs/presenting.md) | the Integrations map, the Backtest page, what each chart says |
 | [Benchmarks](docs/benchmarks.md) | the simulation beside sourced industry and peer figures |
+| [Demo and close exports](docs/jade-demo-and-close-exports.md) | the October close walkthrough, screen by screen, and the exports |
 | [Proof](docs/proof.md) | real vs simulated, scores, what it got wrong |
 | [API](docs/api.md) | endpoints and live scenarios |
 | [Data](DATA.md) | where every row comes from |

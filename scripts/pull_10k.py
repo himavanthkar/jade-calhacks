@@ -1,18 +1,21 @@
 """Pull General Mills' 10-Ks from SEC EDGAR and extract the figures the simulation is calibrated to.
 
-    uv run python scripts/pull_10k.py
+    uv run python scripts/pull_10k.py [--years 7]
 
-Needs SEC_USER_AGENT (your name and email: SEC policy for automated access) in the environment
+`--years` 10-Ks, newest first (default 7: fiscal 2020-2026, the backtest's history), plus every
+quarter's net sales from XBRL as first filed. Needs SEC_USER_AGENT (your name and email: SEC policy for automated access) in the environment
 or .env. Writes the filings and data/edgar/extracted.json — every figure with the sentence it was
 read from — into data/ (git-ignored). Free, no key; stays well under SEC's 10 requests a second.
 """
 
+import argparse
 import json
 import os
 import re
 import sys
 import time
 import urllib.request
+from datetime import date
 from html import unescape
 from pathlib import Path
 
@@ -63,7 +66,7 @@ def extract(t: str) -> dict:
 
     m = re.search(r"Trade promotions are recorded using significant judgment of estimated participation and performance "
                   r"levels for offered programs at the time of sale\. Differences between the estimated and actual "
-                  r"reduction to the transaction price are recognized as a change in estimate in a subsequent period\.", t)
+                  r"reduction to the transaction price (?:are|is) recognized as a change in estimate in a subsequent period\.", t)
     found["trade_promotion_policy"] = {"quote": quote(t, m)}
 
     m = re.search(r"Net Sales North America Retail \$ ([\d,]+\.\d) (\d+) % \$ ([\d,]+\.\d) (\d+) % .*? Total \$ ([\d,]+\.\d) "
@@ -75,21 +78,40 @@ def extract(t: str) -> dict:
     return found
 
 
+def quarters(revenue: list[dict]) -> list[dict]:
+    """Each fiscal quarter's net sales as first filed: the value and the day it became public.
+    A quarter is a duration of 80-100 days (General Mills' fourth quarter runs 13 or 14 weeks)."""
+    first = {}
+    for r in revenue:
+        if "start" not in r or not 80 <= (date.fromisoformat(r["end"]) - date.fromisoformat(r["start"])).days <= 100:
+            continue
+        key = (r["start"], r["end"])
+        if key not in first or r["filed"] < first[key]["filed"]:
+            first[key] = r
+    return [{"start": r["start"], "end": r["end"], "net_sales_usd": r["val"], "form": r["form"],
+             "accession": r["accn"], "filed": r["filed"]} for _, r in sorted(first.items())]
+
+
 def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--years", type=int, default=7, help="how many 10-Ks to read, newest first")
+    args = ap.parse_args()
     ua = user_agent()
     OUT.mkdir(parents=True, exist_ok=True)
     subs = json.loads(get(f"https://data.sec.gov/submissions/CIK{CIK}.json", ua))
     recent = subs["filings"]["recent"]
     tenks = [(a, d, doc) for f, a, d, doc in zip(recent["form"], recent["accessionNumber"], recent["filingDate"],
-                                                  recent["primaryDocument"]) if f == "10-K"][:2]
+                                                  recent["primaryDocument"]) if f == "10-K"][:args.years]
     facts = json.loads(get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{CIK}.json", ua))
     revenue = facts["facts"]["us-gaap"]["RevenueFromContractWithCustomerExcludingAssessedTax"]["units"]["USD"]
 
-    out = {"cik": CIK, "company": subs["name"], "fiscal_year_end": subs["fiscalYearEnd"], "filings": []}
+    out = {"cik": CIK, "company": subs["name"], "fiscal_year_end": subs["fiscalYearEnd"], "filings": [],
+           "quarters": quarters(revenue)}
     for accession, filed, doc in tenks:
         url = f"https://www.sec.gov/Archives/edgar/data/{int(CIK)}/{accession.replace('-', '')}/{doc}"
-        html = get(url, ua)
-        (OUT / doc).write_bytes(html)
+        cached = OUT / doc
+        html = cached.read_bytes() if cached.exists() else get(url, ua)
+        cached.write_bytes(html)
         annual = [r for r in revenue if r["accn"] == accession and r.get("fp") == "FY" and r["form"] == "10-K"]
         fy = max(annual, key=lambda r: r["end"])
         out["filings"].append({"accession": accession, "filed": filed, "url": url, "fiscal_year_end": fy["end"],

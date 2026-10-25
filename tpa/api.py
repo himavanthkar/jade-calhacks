@@ -15,6 +15,9 @@
     GET  /api/scenario/examples        → ready-made scenarios against the books as they stand
     POST /api/scenario                 → { kind, payload, step? } add source rows to the month the clock is on
     GET  /api/scenario                 → everything injected so far
+    GET  /api/integrations             → [{ id, name, backend, status, account }] the connected mailboxes
+    GET  /api/inbox                    → mail read into the books, each with the rows it made and what came of them
+    POST /api/inbox/sync               → { step? } pull new mail into the month the clock is on (and run it)
 
 Decimals go out as strings, never floats. Who answers a step's escalations is TPA_HUMANS:
 'inbox' (default: cards wait for a person), 'players' (the model-played humans) or 'autopilot'.
@@ -37,7 +40,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from tpa import autopilot, explain, export, judgment, players, scenario
+from tpa import autopilot, explain, export, judgment, mail, players, scenario
 from tpa.package import package as signoff_package
 from tpa.asof import sim_clock
 from tpa.constants import live_month, period_end, period_start
@@ -46,6 +49,7 @@ from tpa.db import connect
 from tpa.evaluate import metrics as evaluate_metrics, resolve_period
 from tpa.gates import GateFailure, sign_period
 from tpa.rows import all_rows, one_row
+from tpa.seed.calibration import CIK, FILINGS
 from tpa.sod import SegregationOfDutiesError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -341,6 +345,42 @@ def inject(body: Injection, conn=Depends(db)):
                                      SELECT 1 FROM jsonb_array_elements_text(jsonb_path_query_array(evidence, 'strict $.**'))
                                      AS x(v) WHERE x.v = ANY(%s)) ORDER BY id""", (made["period"], made["created_ids"]))
     return out({**made, "step": summary, "findings": touched})
+
+
+# ── integrations: the deductions inbox ──────────────────────────────────────
+@app.get("/api/integrations")
+def integrations():
+    latest = max(FILINGS, key=lambda f: f.filed)
+    edgar = {"id": "edgar", "name": "SEC EDGAR", "backend": "filings", "status": "connected",
+             "account": f"General Mills · CIK {CIK}",
+             "detail": f"10-K figures the close's analytical review compares against (latest: FY{latest.fiscal_year}, "
+                       f"filed {latest.filed}), each quoted with its sentence. Re-read by scripts/pull_10k.py."}
+    return out([mail.status(), edgar])
+
+
+@app.get("/api/inbox")
+def inbox(conn=Depends(db)):
+    with conn.cursor() as cur:
+        return out(mail.messages(cur))
+
+
+class Sync(BaseModel):
+    step: bool = False                 # also run the month, so the mail plays out at once
+
+
+@app.post("/api/inbox/sync")
+def sync_inbox(body: Sync, conn=Depends(db)):
+    """Read new mail into the month the clock is on. Each message lands as source rows or as context;
+    nothing is decided until the month runs."""
+    with conn.cursor() as cur:
+        try:
+            landed = mail.sync(cur)
+        except (RuntimeError, OSError) as err:
+            raise HTTPException(502, f"mailbox: {err}") from err
+    conn.commit()
+    if not body.step or not landed:
+        return out({"landed": landed})
+    return out({"landed": landed, "step": step(conn, hooks())})
 
 
 @app.post("/api/reset")

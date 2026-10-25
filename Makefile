@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: db-up db-down db-scratch db-reset seed test step year players says-no api
+.PHONY: db-up db-down db-scratch db-reset seed test step year players says-no api backtest benchmarks mail-demo
 
 # Without the compose plugin, run the same container directly.
 db-up:
@@ -40,3 +40,12 @@ says-no:
 
 api:
 	uv run uvicorn tpa.api:app --reload --port 8000
+
+backtest: ## the accrual estimate and the close's controls on General Mills' real 10-Ks (no DB)
+	uv run python scripts/backtest.py
+
+benchmarks: ## the played year's statistics beside sourced industry and peer figures (run after make players)
+	uv run python scripts/benchmarks.py
+
+mail-demo: ## the Walmart side letter by email: SCENARIO=side-letter|late-backup|amendment
+	uv run python scripts/demo_mail.py run $(or $(SCENARIO),side-letter)

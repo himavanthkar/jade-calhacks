@@ -14,6 +14,10 @@ Segregation of duties is checked on every answer (`tpa.sod.can_approve`); a bloc
 its own finding, escalation_type 'sod'. Postings go through `tpa.execute` and `tpa.restate`; this
 module decides who decides, never how much.
 
+Mail on file (`tpa.mail`) is quoted on the card it concerns. One of our own people writing that a
+rate was agreed, with nothing signed, overrides a precedent: the card goes to the controller with a
+hold recommended, since an email is not an agreement (rule 1) and an unsupported claim is held (rule 8).
+
 Policy, not GAAP: LOW_CONFIDENCE (tpa.policy) and which conflicts count as source-of-truth
 questions (here) are company choices.
 """
@@ -26,7 +30,7 @@ from functools import partial
 
 import psycopg
 
-from tpa import model, restate
+from tpa import mail as mailbox, model, restate
 from tpa.autopilot import PRECEDENT_ANSWERS
 from tpa.constants import Control as C, Prefix, period_of, period_start
 from tpa.cycle import MECHANICAL, Hooks, default_judge
@@ -43,6 +47,8 @@ AUTHORITY_DECISIONS = {"top_up_and_clear", "release_accrual", "apply_candidates"
 # Answers that decide nothing for next time.
 NOT_PRECEDENT = {"hold", "escalate"}
 RESTATEMENT = "amendment_not_applied"
+# Findings a claim of unsigned terms bears on: the rate, or an amount over what the agreement accrues.
+TERMS_QUESTIONS = {C.RATE_CONFLICT, C.DED_GT_ACCRUAL, C.CLAIM_VS_BACKUP}
 
 Respond = Callable[[psycopg.Cursor, dict, datetime], None]
 
@@ -237,12 +243,15 @@ def draft_question(f: dict, kind: str) -> str:
 
 
 def escalate(cur: psycopg.Cursor, f: dict, at: datetime, *, to_role: str | None = None,
-             prefix: str = "", precedent: dict | None = None) -> dict:
-    kind, role = classify(f)
-    role = to_role or role
+             prefix: str = "", precedent: dict | None = None, recommendation: tuple[str, str] | None = None,
+             kind: str | None = None) -> dict:
+    classified, role = classify(f)
+    kind, role = kind or classified, to_role or role
     eid = next_id(cur, "escalations", Prefix.ESCALATION)
     options = [o for o in options_for(f) if not (o["decision"] == "escalate" and role == "controller")]
-    rec, basis = recommend(f, options, precedent)
+    if not any(o["decision"] == "hold" for o in options) and recommendation and recommendation[0] == "hold":
+        options = [*options, HOLD]
+    rec, basis = recommendation or recommend(f, options, precedent)
     options = [{**o, "recommended": o["id"] == rec} for o in options]
     label = next(o["label"] for o in options if o["id"] == rec)
     question = f"{(prefix + draft_question(f, kind)).strip()} I'd recommend: {label.lower()}. {basis}"
@@ -278,6 +287,19 @@ def judge(cur: psycopg.Cursor, f: dict, at: datetime, *, respond: Respond | None
     if f["control_id"] in MECHANICAL:
         default_judge(cur, f, at)
         return
+    mail = mailbox.correspondence(cur, f, at)
+    if mail:
+        _note(cur, f["id"], correspondence=mail)
+        f = finding(cur, f["id"])
+    unsigned = [m for m in mailbox.unsigned_terms(mail) if f["control_id"] in TERMS_QUESTIONS
+                and (f["conflict_type"] != "claimed_rate" or m["asserted_rate"] is None
+                     or Decimal(str(m["asserted_rate"])) == Decimal(str((f["evidence"] or {}).get("claimed_rate"))))]
+    if unsigned:
+        esc = escalate(cur, f, at, to_role="controller", kind="source_conflict",
+                       prefix=unsigned_prefix(f, unsigned), recommendation=("hold", unsigned_basis(f, unsigned)))
+        if respond:
+            respond(cur, esc, at)
+        return
     p = find_precedent(cur, f)
     if p and covers(p, f):
         apply_precedent(cur, f, p, at)
@@ -287,6 +309,22 @@ def judge(cur: psycopg.Cursor, f: dict, at: datetime, *, respond: Respond | None
     esc = escalate(cur, f, at, prefix=prefix, precedent=p)
     if respond:
         respond(cur, esc, at)
+
+
+def unsigned_prefix(f: dict, unsigned: list[dict]) -> str:
+    m = unsigned[-1]
+    rate = f" ${m['asserted_rate']}/case" if m["asserted_rate"] else ""
+    return (f"{m['from']} wrote on {m['received']} ({m['id']}) that{rate} was agreed for {m['program_id']}, "
+            f"with no signed amendment on file. ")
+
+
+def unsigned_basis(f: dict, unsigned: list[dict]) -> str:
+    m = unsigned[-1]
+    who = f"the {m['from']}, who negotiated {m['program_id']}," if m["sender_actor"] and m["sender_actor"].startswith(
+        "sales.") else m["from"]
+    return (f"An email is not an agreement: {m['program_id']} as signed doesn't support this, and {who} can't "
+            f"approve a claim on their own deal. Hold until the signed amendment arrives; when it does, the "
+            f"engine reads it and restates the months it reaches.")
 
 
 def request_approval(cur: psycopg.Cursor, f: dict, at: datetime, *, respond: Respond | None = None) -> None:

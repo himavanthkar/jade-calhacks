@@ -169,6 +169,29 @@ CREATE TABLE scenario_injections (
   injected_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- Mail that reached the deductions inbox (tpa.mail): the message as received, what the parser read
+-- from it, and what the engine did with it. A message is a source document, never an instruction:
+-- a deduction notice, backup or signed amendment becomes source rows through `scenario.inject`;
+-- anything else is context the judgment engine quotes on the card it concerns.
+CREATE TABLE inbound_messages (
+  id TEXT PRIMARY KEY,                -- 'EM-0001'
+  source TEXT NOT NULL,               -- 'gmail' | 'local'
+  message_id TEXT NOT NULL UNIQUE,    -- the mailbox's own id: a message is ingested once
+  from_addr TEXT NOT NULL,            -- the original sender (of a forward, the forwarded message's)
+  forwarded_by TEXT,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  received_at TIMESTAMP NOT NULL,     -- real time, as the mailbox stamped it
+  sim_date DATE NOT NULL,             -- the day it lands in the simulation
+  period TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('deduction_notice', 'claim_backup', 'amendment', 'unsigned_terms', 'unrecognised')),
+  customer_id TEXT REFERENCES customers(id),
+  sender_actor TEXT REFERENCES actors(id),   -- set when the sender is one of our own people
+  parsed JSONB NOT NULL DEFAULT '{}', -- every field read, each with the line it was read from
+  injection_id TEXT REFERENCES scenario_injections(id),
+  created_ids TEXT[] NOT NULL DEFAULT '{}'
+);
+
 -- Work a colleague hands over half done: a held deduction, what they propose, what they did and
 -- what is left. The agent re-checks it rather than trusting it, then finishes it or hands it back.
 CREATE TABLE handoffs (

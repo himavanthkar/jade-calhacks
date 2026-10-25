@@ -33,6 +33,37 @@ person only when the agreement can't settle the question, and an answer, once gi
 - **Reopens its own work.** When the past changes, it restates closed months and keeps both reasonings.
 - **Checkable in Excel.** Every close exports as CSVs with check rows; verifiability gates block a bad period instead of warning.
 
+## Why General Mills
+
+![A Saturday-morning table: five white bowls of Honey Nut Cheerios, Lucky Charms, Trix, Cocoa Puffs and Cinnamon Toast Crunch with milk, a glass milk jug and an orange napkin on a cream backdrop.](docs/images/gm-saturday-morning.jpg)
+
+If you grew up in America, General Mills was probably at your breakfast table before you could read the box.
+Cheerios (first sold as CheeriOats in 1941) was the first finger food a lot of us picked up. Saturday mornings
+were Lucky Charms, Trix, Cocoa Puffs and Cinnamon Toast Crunch in front of cartoons; October was Count Chocula.
+After school came Fruit by the Foot, Gushers and Totino's Pizza Rolls, and a Nature Valley bar went in the
+backpack. Wheaties put athletes on the box and called itself the Breakfast of Champions.
+
+![An after-school snack spread: a plate of pizza rolls, one broken open, fruit snack rolls and fruit gummies, beside two oat granola bars on parchment.](docs/images/gm-after-school.jpg)
+
+Every one of those boxes reached the shelf through a retailer, and most were sold on a promise: a scan-back for
+every unit Walmart sells this quarter, a display fee for an end cap at Kroger, an allowance off every case
+Costco buys. General Mills books what it owes the day the truck leaves and finds out what it really owed months
+later, when the retailer deducts it from a payment. That gap is not small. General Mills sold **$18.4 billion**
+in fiscal 2026, **22%** of it to Walmart, and carried **$493 million** of accrued trade and coupon promotion
+liabilities at year end, which its 10-K names as one of its critical accounting estimates. When those estimates
+true up, they move the reported quarter: trade expense timing added **7 points** to adjusted operating profit
+growth in Q4 fiscal 2026, after taking 2 to 3 points off net sales growth in the fourth quarters of the two
+years before.
+
+![Two vintage cereal boxes, CheeriOats from 1941 and a Wheaties Breakfast of Champions box, on a wooden counter beside a bowl of oat rings.](docs/images/gm-since-1941.jpg)
+
+The cereal is the same one we grew up on. The bookkeeping behind it still runs on spreadsheets and people
+chasing deductions. JADE takes those seats.
+
+<sub>Photographs: studio renderings made with OpenAI's image model from real product photos on Wikimedia Commons;
+sources and licenses in [docs/images/CREDITS.md](docs/images/CREDITS.md). Product names are General Mills
+trademarks. This project is not affiliated with or endorsed by General Mills.</sub>
+
 ## The story
 
 ![The moment, in four panels: in February an amendment to TP-0214 raising the rate from $3.80 to $4.20 a case is filed and forgotten; February to July close short; in August the system pulls the six months back and finds $1,391,636.52; the sales lead's approval is blocked by segregation of duties and the controller signs.](docs/images/the-moment.jpg)

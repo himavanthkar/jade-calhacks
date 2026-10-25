@@ -97,6 +97,24 @@ export type ExportFile = 'ledger.csv' | 'trial_balance.csv' | 'reconciliation.cs
 export interface JudgmentRecord { repeat_findings: number; settled_by_precedent: number; asked_again: number; asked_again_detail: Evidence[]; precedent_hit_rate: number | null; first_time_questions: number }
 export interface Metrics { precision: number | null; recall: number | null; escalation_rate: number | null; autonomy: number | null; as_of?: string; live_month?: number; counts?: Record<string, number>; missed?: Evidence[]; false_positives?: Evidence[]; judgment?: JudgmentRecord }
 
+/** A connected mailbox (tpa.mail.status). */
+export interface Integration { id: string; name: string; backend: 'local' | 'gmail'; status: 'connected' | 'not_connected'; account?: string; address?: string | null; detail?: string }
+export type MailKind = 'deduction_notice' | 'claim_backup' | 'amendment' | 'unsigned_terms' | 'unrecognised'
+/** A field the parser read, with the line it read it from. */
+export interface ParsedField { value: Json; line: string; unreadable?: boolean }
+/** Mail read into the books: what it said, what it became (`created_ids`), and the findings and cards on it. */
+export interface InboundMessage {
+  id: string; source: 'gmail' | 'local'; message_id: string; from_addr: string; forwarded_by: string | null; subject: string; body: string
+  received_at: string; sim_date: string; period: string; kind: MailKind; customer_id: CustomerId | null; sender_actor: string | null
+  parsed: { sender_name: string | null; fields: Record<string, ParsedField>; not_landed?: string }
+  injection_id: string | null; created_ids: string[]
+  outcome: { id: string; control_id: string; state: Finding['state']; escalation_type: EscalationType | null; amount: DecimalValue | null; escalation_id: string | null; to_role: Role | null; answer: string | null }[]
+}
+/** One message as `POST /api/inbox/sync` landed it. */
+export interface LandedMessage { id: string; kind: MailKind; lands_on: string; customer_id: CustomerId | null; subject: string; injection_id: string | null; created_ids: string[]; not_landed: string | null; sender: string }
+export interface SyncResult { landed: LandedMessage[]; step?: StepSummary }
+/** A message quoted on a card (finding evidence `correspondence`). */
+export interface Correspondence { id: string; kind: MailKind; from: string; sender_actor: string | null; subject: string; received: string; asserted_rate: DecimalValue | null; signed: boolean | null; program_id: string | null; quotes: string[] }
 /** The judge's own scenario (tpa/scenario.py): rows land in the month the clock is on; the engine meets them on the next step. */
 export type ScenarioKind = 'deduction' | 'duplicate' | 'backup' | 'return' | 'amendment' | 'approval_attempt' | 'handoff'
 export interface ScenarioExample { title: string; kind: ScenarioKind; payload: Evidence }
@@ -129,6 +147,10 @@ export interface TradePromotionApi {
   explainEntry(id: string, options?: RequestOptions): Promise<Explanation>
   ask(question: string, options?: RequestOptions): Promise<AskResponse>
   getMetrics(period: string, options?: RequestOptions): Promise<Metrics>
+  getIntegrations(options?: RequestOptions): Promise<Integration[]>
+  getInbox(options?: RequestOptions): Promise<InboundMessage[]>
+  /** Read new mail into the month the clock is on; `step` also runs the month. */
+  syncInbox(step?: boolean, options?: RequestOptions): Promise<SyncResult>
   getScenarioExamples(options?: RequestOptions): Promise<ScenarioExample[]>
   getInjections(options?: RequestOptions): Promise<Injection[]>
   /** With `step`, also runs the month so the scenario plays out at once. */

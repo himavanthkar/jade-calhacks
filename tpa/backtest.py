@@ -21,7 +21,7 @@ Company level only: this scores the top-down estimate and the controls, never de
 from collections.abc import Callable, Sequence
 from decimal import ROUND_HALF_EVEN, Decimal
 
-from tpa.filings import YEARS, Year
+from tpa.filings import BALANCE_SHEET, YEARS, Year
 from tpa.policy import ANALYTICAL_REVIEW_TOLERANCE
 
 ZERO = Decimal("0")
@@ -89,3 +89,19 @@ def run(years: Sequence[Year] = YEARS, tolerance: Decimal = ANALYTICAL_REVIEW_TO
                                   "false_alarms": sum(c["review_flagged"] for c in closes),
                                   "largest_drift": max((c["review_drift"] for c in closes), key=abs)},
             "restatements": restated}
+
+
+def history(series=BALANCE_SHEET) -> dict:
+    """Sixteen year ends of the balance-sheet line: the ratio each year, the year-on-year drift the
+    analytical review would have seen, and the tolerance that would have stayed quiet on audited books."""
+    years = [{"fiscal_year": b.fiscal_year, "liability_musd": b.accrued_trade_and_consumer_musd,
+              "net_sales_musd": b.net_sales_musd,
+              "ratio": r(b.accrued_trade_and_consumer_musd / b.net_sales_musd, "0.0001"), "accession": b.accession}
+             for b in series]
+    exact = [b.accrued_trade_and_consumer_musd / b.net_sales_musd for b in series]
+    for i, (prev, y) in enumerate(zip(years, years[1:]), start=1):
+        y["drift"] = r(exact[i] / exact[i - 1] - 1, "0.0001")
+        y["naive_error"] = r(prev["liability_musd"] / y["liability_musd"] - 1, "0.0001")
+    drifts = [abs(y["drift"]) for y in years[1:]]
+    return {"years": years, "largest_drift": max(drifts), "quiet_tolerance": max(drifts),
+            "mean_abs_drift": r(sum(drifts, ZERO) / len(drifts), "0.0001")}

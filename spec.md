@@ -601,7 +601,7 @@ Submission closes Sunday 9:00 AM PT, hard. The plan ends at 6:00 AM with three h
 2. **Commit on green only.** One broken main at 4am costs more than any feature gains.  
 3. **If a thing is not on screen by Saturday 8pm, it is cut.** No exceptions, including the restatement — although if the restatement is cut, the project is cut, so protect it above everything.
 
-## **The demo \# GET INSPIRED FROM HACKMIT DEMOS \#\#\# AGENT TODO.** 
+## **The demo**
 
 ### **The moment**
 

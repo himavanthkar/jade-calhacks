@@ -41,3 +41,17 @@
 .mail-detail pre{white-space:pre-wrap;font-size:10px;line-height:1.55;background:#faf9f6;border:1px solid #ecece7;padding:14px;margin-top:10px;max-height:420px;overflow:auto}
 .integrations-note{margin-top:40px;font-size:9px;color:#85857e}
 @media (max-width:820px){.mail-layout{grid-template-columns:1fr}.mail-detail{border-left:0;padding-left:0}.outcome-row{grid-template-columns:1fr}}
+.integration-map{margin:28px 0 0}.integration-map svg{width:100%;height:auto;display:block}
+.map-line{fill:none;stroke:#d8c3ad;stroke-width:1.5}.map-line.live{stroke:#E86F31;stroke-width:1.5;stroke-dasharray:4 6;animation:map-flow 1.6s linear infinite}
+.map-line.planned{stroke:#cdbba8;stroke-dasharray:3 5}.map-line.off{stroke:#c9b6a2}
+@keyframes map-flow{to{stroke-dashoffset:-20}}
+@media (prefers-reduced-motion:reduce){.map-line.live{animation:none}}
+.map-flow{font:500 10px ui-monospace,Menlo,monospace;fill:#8a7a6a;letter-spacing:.2px}
+.map-mono{font:600 10px ui-monospace,Menlo,monospace;fill:#b64f2f;letter-spacing:1.6px}
+.map-name{font:600 12px Arial,Helvetica,sans-serif;fill:#292623}.map-note{font:10px Arial,Helvetica,sans-serif;fill:#85857e}
+.map-hub-mark{font:800 46px 'EB Garamond',Georgia,serif;fill:#fff}.map-glyph{font:24px Arial,sans-serif;fill:#5b241d}
+.map-node.planned .map-name,.map-node.planned .map-note{fill:#a8998a}
+.integration-map figcaption{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:10px;color:#72726b;margin-top:10px}
+.integration-map .dot{display:inline-block;width:14px;height:0;border-top:2px dashed #E86F31;margin-right:6px;vertical-align:middle}
+.integration-map .dot.planned{border-top-color:#cdbba8}
+.logo.brand{background:#fff;border:1px solid #efe5d9;padding:6px}.logo.brand img{width:100%;height:100%;object-fit:contain}

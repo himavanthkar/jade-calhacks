@@ -2,8 +2,9 @@ import { ApiError, validatePeriod } from './client'
 import inboxData from './fixtures/inbox.json'
 import momentData from './fixtures/moment.json'
 import mailData from './fixtures/mail.json'
+import backtestData from './fixtures/backtest.json'
 import type {
-  AnswerResult, AskResponse, Clock, Control, CustomerId, Escalation, Evidence, Explanation, InboundMessage, Integration,
+  AnswerResult, AskResponse, Backtest, Clock, Control, CustomerId, Escalation, Evidence, Explanation, InboundMessage, Integration,
   Metrics, Period, PeriodState, RequestOptions, ScenarioExample, SignoffPackage, StepSummary, TradePromotionApi,
 } from './types'
 
@@ -25,6 +26,8 @@ const moment = momentData as unknown as {
 }
 /** October after the side letter, the claim it is about, and the signed amendment (scripts/mail_fixture.py). */
 const mail = mailData as unknown as { integrations: Integration[]; inbox: InboundMessage[]; escalations: Escalation[] }
+/** GET /api/backtest and the played year's monthly metrics (scripts/backtest_fixture.py). */
+const backtest = backtestData as unknown as { backtest: Backtest; series: Metrics[] }
 const CUSTOMERS: CustomerId[] = ['COST', 'KR', 'WMT']
 const ORDER: PeriodState[] = ['OPEN', 'ACCRUED', 'CONTROLLED', 'ESCALATED', 'REVIEWED', 'SIGNED', 'CLOSED', 'RESTATED']
 const MONTHS = Object.keys(inbox.months)
@@ -169,6 +172,8 @@ export function createMockApi(scenario: MockScenario = 'inbox'): TradePromotionA
       return finish({ question, chains: [], knowledge: null, drafted_by: 'agent',
         answer: "I couldn't tie that to a record. Name an entry (JE-…), a deduction (DD-…), a finding (FN-…) or a month, and I'll trace it." } satisfies AskResponse, options)
     },
+    getBacktest: options => finish(backtest.backtest, options),
+    getMetricsSeries: options => finish(backtest.series, options),
     getIntegrations: options => finish(mail.integrations.map(i => i.id === 'gmail' ? { ...i, account: 'captured inbox', detail: 'Captured from the API: replaying a synced inbox.' } : i), options),
     getInbox: options => finish(mail.inbox, options),
     syncInbox: () => Promise.reject(new ApiError(409, 'The mock replays a captured inbox. Run the API with JADE_MAIL_BACKEND to read live mail.')),

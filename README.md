@@ -1,6 +1,6 @@
-# JADE — Judgement And Decision Engine
+# JADE — Deterministic JADE Engine
 
-![JADE, the Judgement And Decision Engine: the trade promotion accountant that reopens its own books. Shipments and deduction stubs feed an open ledger, and an amendment letter pulls six closed months, February to July, back open to be restated.](docs/images/hero.jpg)
+![JADE, the Deterministic JADE Engine: the trade promotion accountant that reopens its own books. Shipments and deduction stubs feed an open ledger, and an amendment letter pulls six closed months, February to July, back open to be restated.](docs/images/hero.jpg)
 
 <p align="center">
   <b>Cal Hacks 13.0</b> &nbsp;·&nbsp; <b>Hyphenate track</b> &nbsp;·&nbsp; Autonomous trade promotion accounting for General Mills
@@ -86,6 +86,42 @@ known at the time, and what it looks like now.
 The ledger is bitemporal and insert-only: every row records when it was true and when the system learned
 it. Correct then and correct now are both answers to the same query, run at two points in time.
 
+## Email as evidence
+
+![The controller's card for Walmart's $4.50 claim: the sales lead's email is quoted and flagged "Nothing signed: an email is not an amendment", beside the retailer's deduction notice with the lines JADE read from it.](docs/images/ui-email-card.jpg)
+
+Much of what decides a deduction never reaches the books: backup arrives as an attachment, a rate is
+"agreed" in an email, an amendment sits in someone's folder. JADE reads the deductions inbox (Gmail, through
+the Google Workspace CLI) the way it reads contracts: by code, with every field quoted from its sentence.
+A deduction notice, backup or signed amendment lands as source rows; anything else is context.
+
+**It reads the email; it doesn't obey it.** The Walmart sales lead writes "$4.50 a case, paperwork to follow,
+please clear their claim at that rate." Without that email, Walmart's $4.50 claim goes to the customer team and
+last year's precedent disputes the difference. With it, the card goes to the controller, quotes the email, and
+recommends a hold: an email is not an agreement, and the person who negotiated the deal can't approve its claim.
+When the signed amendment arrives, JADE reads it and restates September by $190,415.99.
+
+![The Integrations page: Gmail and SEC EDGAR feed the JADE engine, Claude drafts card wording only, and the engine writes to an insert-only Postgres ledger, the escalation inbox and the Excel close package. Retail Link and EDI 820 are drawn as planned.](docs/images/ui-integrations.jpg)
+
+`scripts/demo_mail.py run side-letter` plays it end to end. More in [Integrations](docs/integrations.md).
+
+## Backtested on General Mills' real 10-Ks
+
+![The Backtest page: General Mills' trade promotion liability as a share of net sales from FY2011 to FY2026, and the estimate at each close against what the 10-K reported.](docs/images/ui-backtest.jpg)
+
+Deduction-level data is never public, so what can be tested on real books is the estimate General Mills itself
+calls critical: the trade promotion liability at each year end. Walked forward, so no close sees its own 10-K:
+
+- **Audited books swing up to 22.1% a year** (FY2022). Today's ±50% analytical review can't fail; ±22% is
+  calibrated on sixteen years of filings.
+- **Carrying last year's balance forward misses by 9.4%; scaling by sales misses by 12.3%.** The balance follows
+  which programs run and how late retailers claim, which is why JADE accrues program by program.
+- **When the estimate trues up, the quarter moves:** trade expense timing cost 3 points of Q4 sales growth in
+  FY2024 and 13 points of Q4 profit growth in FY2025, and added 7 points in FY2026 (earnings releases, quoted).
+
+`make backtest` prints it; the sources are in [`tpa/filings.py`](tpa/filings.py), and the simulation's
+statistics beside industry benchmarks are in [Benchmarks](docs/benchmarks.md).
+
 ## How it works
 
 ![One month, end to end: ship and accrue, deduction lands, match to program, clear, dispute or ask, verifiability gates, flux commentary, sign the close, around an insert-only ledger where every number is computed by code. Questions asked once are remembered.](docs/images/how-it-works.jpg)
@@ -148,6 +184,9 @@ Python · FastAPI · Postgres 16 (bitemporal, insert-only ledger) · Claude · R
 | [Getting started](docs/getting-started.md) | setup, `make` targets, the frontend |
 | [Architecture](docs/architecture.md) | the six layers, how a month runs, code map, engine hooks |
 | [People and controls](docs/people-and-controls.md) | who decides what, cards, precedents, segregation of duties |
+| [Integrations](docs/integrations.md) | the Gmail deductions inbox and the live email demo |
+| [Presenting the data](docs/presenting.md) | the Integrations map, the Backtest page, what each chart says |
+| [Benchmarks](docs/benchmarks.md) | the simulation beside sourced industry and peer figures |
 | [Proof](docs/proof.md) | real vs simulated, scores, what it got wrong |
 | [API](docs/api.md) | endpoints and live scenarios |
 | [Data](DATA.md) | where every row comes from |

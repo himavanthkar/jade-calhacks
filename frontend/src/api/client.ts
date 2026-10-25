@@ -1,5 +1,5 @@
 import { adaptControls, adaptMetrics } from './adapters'
-import type { AsOfOptions, Control, Metrics, RequestOptions, TradePromotionApi } from './types'
+import type { AsOfOptions, Control, Metrics, RequestOptions, SyncResult, TradePromotionApi } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -60,5 +60,8 @@ export function createHttpApi(baseUrl = '/api', fetcher: typeof fetch = fetch): 
     explainEntry: (id, options) => request(`/explain/${encodeURIComponent(id)}`, options),
     ask: (question, options) => request('/ask', options, { question }, true),
     getMetrics: async (period, options) => adaptMetrics(await request<Metrics>(`/metrics?as_of=${encodeURIComponent(period)}`, options)),
+    getIntegrations: options => request('/integrations', options),
+    getInbox: options => request('/inbox', options),
+    syncInbox: async (step = false, options) => (await request<SyncResult>('/inbox/sync', options, { step }, true)) ?? { landed: [] },
   }
 }

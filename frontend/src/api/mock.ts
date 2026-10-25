@@ -1,9 +1,10 @@
 import { ApiError, validatePeriod } from './client'
 import inboxData from './fixtures/inbox.json'
 import momentData from './fixtures/moment.json'
+import mailData from './fixtures/mail.json'
 import type {
-  AnswerResult, AskResponse, Clock, Control, CustomerId, Escalation, Evidence, Explanation, Metrics, Period,
-  PeriodState, RequestOptions, SignoffPackage, StepSummary, TradePromotionApi,
+  AnswerResult, AskResponse, Clock, Control, CustomerId, Escalation, Evidence, Explanation, InboundMessage, Integration,
+  Metrics, Period, PeriodState, RequestOptions, SignoffPackage, StepSummary, TradePromotionApi,
 } from './types'
 
 /**
@@ -22,6 +23,8 @@ const moment = momentData as unknown as {
   clock: Clock; period: Period; controls: Control[]; escalations_answered: Escalation[]; feb_accrual: Explanation
   feb_package_then: SignoffPackage; feb_package_now: SignoffPackage; metrics: Record<string, Metrics>; asks: AskResponse[]
 }
+/** October after the side letter, the claim it is about, and the signed amendment (scripts/mail_fixture.py). */
+const mail = mailData as unknown as { integrations: Integration[]; inbox: InboundMessage[]; escalations: Escalation[] }
 const CUSTOMERS: CustomerId[] = ['COST', 'KR', 'WMT']
 const ORDER: PeriodState[] = ['OPEN', 'ACCRUED', 'CONTROLLED', 'ESCALATED', 'REVIEWED', 'SIGNED', 'CLOSED', 'RESTATED']
 const MONTHS = Object.keys(inbox.months)
@@ -155,6 +158,9 @@ export function createMockApi(scenario: MockScenario = 'inbox'): TradePromotionA
       return finish({ question, chains: [], knowledge: null, drafted_by: 'agent',
         answer: "I couldn't tie that to a record. Name an entry (JE-…), a deduction (DD-…), a finding (FN-…) or a month, and I'll trace it." } satisfies AskResponse, options)
     },
+    getIntegrations: options => finish(mail.integrations.map(i => i.id === 'gmail' ? { ...i, account: 'captured inbox', detail: 'Captured from the API: replaying a synced inbox.' } : i), options),
+    getInbox: options => finish(mail.inbox, options),
+    syncInbox: () => Promise.reject(new ApiError(409, 'The mock replays a captured inbox. Run the API with JADE_MAIL_BACKEND to read live mail.')),
     getMetrics: (period, options) => {
       const m = metrics.get(period) ?? metrics.get(period.replace(/^2026-0?/, 'month-'))
       return m ? finish(m, options) : Promise.reject(new ApiError(404, `The mock has metrics for ${[...metrics.keys()].join(', ') || 'no month yet'}.`))

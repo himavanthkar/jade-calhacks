@@ -10,3 +10,9 @@ data/
 
 # local research notes, not part of the docs
 .research/
+
+# research on other teams' projects: local only, never in the repo
+docs/pitch.md
+docs/pitch-screenshots/
+**/*hackmit*
+**/*winner-research*

@@ -1,0 +1,8 @@
+.refusal{border:1px solid #d7c2b5;border-left:3px solid #9b3b22;background:#fbf4ee;padding:16px 18px;margin:16px 0;line-height:1.6;font-size:12px;color:#292623}
+.refusal .eyebrow{font:800 10px 'EB Garamond',Georgia,serif;letter-spacing:1.4px;color:#9b3b22;margin:0 0 6px}
+.refusal h3{font-size:16px;margin:0 0 6px}
+.refusal p{margin:0;overflow-wrap:anywhere}
+.refusal small{display:block;margin-top:8px;font-size:10px;color:#72726b}
+.refusal button{margin-top:10px;font-size:11px}
+.refusal.sod{border-left-color:#5b241d;background:#f7ece6}
+.refusal.sod .eyebrow{color:#5b241d}

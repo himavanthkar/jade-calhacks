@@ -65,6 +65,8 @@ export function createHttpApi(baseUrl = '/api', fetcher: typeof fetch = fetch): 
     explainEntry: (id, options) => request(`/explain/${encodeURIComponent(id)}`, options),
     ask: (question, options) => request('/ask', options, { question }, true),
     getMetrics: async (period, options) => adaptMetrics(await request<Metrics>(`/metrics?as_of=${encodeURIComponent(period)}`, options)),
+    getProblem: options => request('/problem', options),
+    getOnboarding: options => request('/onboarding', options),
     getBacktest: options => request('/backtest', options),
     getMetricsSeries: async options => (await request<Metrics[]>('/metrics/series', options)).map(adaptMetrics),
     getIntegrations: options => request('/integrations', options),

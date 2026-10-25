@@ -4,7 +4,7 @@ import momentData from './fixtures/moment.json'
 import mailData from './fixtures/mail.json'
 import backtestData from './fixtures/backtest.json'
 import type {
-  AnswerResult, AskResponse, Backtest, Clock, Control, CustomerId, Escalation, Evidence, Explanation, InboundMessage, Integration,
+  AnswerResult, AskResponse, Backtest, Clock, Onboarding, Problem, Control, CustomerId, Escalation, Evidence, Explanation, InboundMessage, Integration,
   Metrics, Period, PeriodState, RequestOptions, ScenarioExample, SignoffPackage, StepSummary, TradePromotionApi,
 } from './types'
 
@@ -27,7 +27,7 @@ const moment = momentData as unknown as {
 /** October after the side letter, the claim it is about, and the signed amendment (scripts/mail_fixture.py). */
 const mail = mailData as unknown as { integrations: Integration[]; inbox: InboundMessage[]; escalations: Escalation[] }
 /** GET /api/backtest and the played year's monthly metrics (scripts/backtest_fixture.py). */
-const backtest = backtestData as unknown as { backtest: Backtest; series: Metrics[] }
+const backtest = backtestData as unknown as { backtest: Backtest; series: Metrics[]; problem: Problem; onboarding: Onboarding }
 const CUSTOMERS: CustomerId[] = ['COST', 'KR', 'WMT']
 const ORDER: PeriodState[] = ['OPEN', 'ACCRUED', 'CONTROLLED', 'ESCALATED', 'REVIEWED', 'SIGNED', 'CLOSED', 'RESTATED']
 const MONTHS = Object.keys(inbox.months)
@@ -164,6 +164,11 @@ export function createMockApi(scenario: MockScenario = 'inbox'): TradePromotionA
         chain: { entry_id: id, head, steps: [], memo: line.memo }, text: `${head}\n  (the mock captured no chain for this line)` }, options)
     },
     ask: (question, options) => {
+      if (/what problem|why .*matter|what does jade (do|solve)/i.test(question) && backtest.problem) {
+        const p = backtest.problem
+        return finish({ question, chains: [], knowledge: null, drafted_by: 'agent',
+          answer: [p.story.split('. In the simulation')[0] + '.', ...p.facts.map(f => `${f.value}: ${f.label} (${f.source}).`), p.story].join('\n') } satisfies AskResponse, options)
+      }
       const captured = scenario === 'moment' ? moment.asks.find(a => a.question === question) : undefined
       if (captured) return finish(captured, options)
       const id = /\bJE-\d+(-\d+)?\b/.exec(question)?.[0]
@@ -172,6 +177,8 @@ export function createMockApi(scenario: MockScenario = 'inbox'): TradePromotionA
       return finish({ question, chains: [], knowledge: null, drafted_by: 'agent',
         answer: "I couldn't tie that to a record. Name an entry (JE-…), a deduction (DD-…), a finding (FN-…) or a month, and I'll trace it." } satisfies AskResponse, options)
     },
+    getProblem: options => finish(backtest.problem, options),
+    getOnboarding: options => finish(backtest.onboarding, options),
     getBacktest: options => finish(backtest.backtest, options),
     getMetricsSeries: options => finish(backtest.series, options),
     getIntegrations: options => finish(mail.integrations.map(i => i.id === 'gmail' ? { ...i, account: 'captured inbox', detail: 'Captured from the API: replaying a synced inbox.' } : i), options),

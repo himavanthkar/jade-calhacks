@@ -1,9 +1,10 @@
-"""Capture what the frontend's Backtest page replays. Re-seeds DATABASE_URL.
+"""Capture what the frontend's Backtest, Onboarding and Overview pages replay. Re-seeds DATABASE_URL.
 
     uv run python scripts/backtest_fixture.py
 
 backtest.json   GET /api/backtest (real 10-K figures, no database) and GET /api/metrics/series after the
-                played year (the simulation: does it ask less as answers accumulate?)
+                played year (the simulation: does it ask less as answers accumulate?), GET /api/problem and
+                GET /api/onboarding (agreements read, last year's decisions, policy)
 """
 
 import json
@@ -33,5 +34,6 @@ c = TestClient(app)
 backtest, series = c.get("/api/backtest").json(), c.get("/api/metrics/series").json()
 for m in series:                     # the page needs the scores, not the lists of ids behind them
     m.pop("missed", None), m.pop("false_positives", None)
-OUT.write_text(json.dumps({"backtest": backtest, "series": series}, separators=(",", ":")))
+OUT.write_text(json.dumps({"backtest": backtest, "series": series, "problem": c.get("/api/problem").json(),
+                           "onboarding": c.get("/api/onboarding").json()}, separators=(",", ":")))
 print(f"wrote {OUT.relative_to(ROOT)}: {len(backtest['closes'])} closes, {len(series)} months")

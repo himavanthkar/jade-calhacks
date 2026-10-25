@@ -137,6 +137,14 @@ export interface Backtest {
   trade_timing: TradeTiming[]; policy_tolerance: DecimalValue
 }
 
+/** GET /api/problem (tpa/problem.py): the problem in cited numbers. */
+export interface ProblemFact { value: string; label: string; source: string; url: string }
+export interface Problem { facts: ProblemFact[]; story: string }
+/** GET /api/onboarding: agreements read into terms, last year's decisions, the policy signed at go-live. */
+export interface ProgramTerm { program_id: string; customer_id: CustomerId; program_type: string; rate: DecimalValue; rate_unit: string; projected_redemption: DecimalValue | null; window_start: string; window_end: string; requires_proof: boolean; source_clause_id: string | null; amendment_id: string | null; decision_time: string }
+export interface PolicySetting { name: string; value: DecimalValue | number; unit: 'pct' | 'share' | 'days'; why: string }
+export interface Onboarding { programs: ProgramTerm[]; history: { action: string; n: number; people: number }[]; policy: PolicySetting[] }
+
 export interface RequestOptions { signal?: AbortSignal }
 /** `asOf`: 'month-N', 'YYYY-MM' or an ISO date-time — the books as they stood then. */
 export interface AsOfOptions extends RequestOptions { asOf?: string }
@@ -159,6 +167,8 @@ export interface TradePromotionApi {
   explainEntry(id: string, options?: RequestOptions): Promise<Explanation>
   ask(question: string, options?: RequestOptions): Promise<AskResponse>
   getMetrics(period: string, options?: RequestOptions): Promise<Metrics>
+  getProblem(options?: RequestOptions): Promise<Problem>
+  getOnboarding(options?: RequestOptions): Promise<Onboarding>
   getBacktest(options?: RequestOptions): Promise<Backtest>
   /** Metrics for every live month run so far. */
   getMetricsSeries(options?: RequestOptions): Promise<Metrics[]>

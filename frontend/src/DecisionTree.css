@@ -1,15 +1,17 @@
-.decision-tree{border:1px solid #efe5d9;border-radius:12px;padding:16px 18px;margin:18px 0;background:#fdfbf8}
-.decision-tree h3{font:600 10px ui-monospace,Menlo,monospace;letter-spacing:1.4px;color:#b64f2f;margin:0 0 12px}
-.decision-tree ol{list-style:none;margin:0;padding:0}
-.dt-step{display:grid;grid-template-columns:26px 1fr;gap:12px;position:relative;padding-bottom:14px}
-.dt-step:not(:last-child)::before{content:"";position:absolute;left:12px;top:26px;bottom:0;border-left:2px solid #E86F31}
-.dt-node{width:26px;height:26px;border-radius:50%;background:#E86F31;color:#fff;display:grid;place-items:center;font:700 11px Arial,Helvetica,sans-serif}
-.dt-step.leaf .dt-node{background:#5b241d}
-.dt-step.outcome.dt-done .dt-node{background:#21654a}.dt-step.outcome.dt-open .dt-node{background:#fff;color:#9b3b22;border:2px solid #9b3b22}
-.dt-q{font-size:12px;font-weight:600;margin:3px 0 6px;color:#292623}
-.dt-branches{display:flex;flex-wrap:wrap;gap:6px}
-.dt-branch{font-size:10px;line-height:1.4;padding:4px 8px;border-radius:999px;border:1px dashed #d8cdbf;color:#8b8578;background:#fff}
-.dt-branch b{font-weight:600}
-.dt-branch.taken{border:1px solid #E86F31;background:#fbe9df;color:#5b241d}
-.dt-detail{font-size:11px;line-height:1.55;color:#55554f;margin:0}
-.dt-note{font-size:9px;color:#85857e;margin:4px 0 0}
+.decision-tree{border:1px solid #e9dfcf;border-radius:12px;padding:16px 18px;margin:18px 0;background:#f3eee6}
+.decision-tree h3{font:600 10px ui-monospace,Menlo,monospace;letter-spacing:1.4px;color:#b64f2f;margin:0 0 6px}
+.decision-tree svg{width:100%;height:auto;display:block}
+.dt-edge line{stroke:#b9b0a3;stroke-width:1.5}
+.dt-edge.taken line{stroke:#E86F31;stroke-width:3;stroke-linecap:round}
+.dt-square{fill:#5b241d}
+.dt-leaf{fill:#fff;stroke:#b9b0a3;stroke-width:1.5}
+.dt-leaf.taken{fill:#E86F31;stroke:#fff;stroke-width:2}
+.dt-nlabel{font:600 12px Arial,Helvetica,sans-serif;fill:#292623}
+.dt-blabel{font:11px Arial,Helvetica,sans-serif;fill:#6f6c64}
+.dt-edge.taken .dt-blabel{fill:#5b241d;font-weight:700}
+.dt-ltext{font:11px Arial,Helvetica,sans-serif;fill:#8b8578}
+.dt-ltext.taken{font-weight:700;fill:#292623}
+.dt-result{border-top:1px solid #e3d8c8;margin-top:8px;padding-top:10px;font-size:11px;line-height:1.55;color:#45443f}
+.dt-result p{margin:0 0 6px}
+.dt-outcome span{font-weight:700}.dt-result.dt-done .dt-outcome span{color:#21654a}.dt-result.dt-open .dt-outcome span{color:#9b3b22}
+.dt-note{font-size:9px;color:#85857e;margin:2px 0 0}

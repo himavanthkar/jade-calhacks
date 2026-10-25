@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan: JADE demo, transcript and close exports</title>
+<style>
+  :root {
+    --bg: #fbf8f3;           /* parchment, as the UI and README art */
+    --surface: #ffffff;
+    --ink: #292623;
+    --muted: #6f6c64;
+    --rule: #ecdfd0;
+    --oxblood: #5b241d;      /* headings */
+    --accent: #E86F31;       /* JADE orange */
+    --accent-soft: #fbe9df;
+    --real: #2a78d6;         /* reported, real figures */
+    --good: #21654a;
+    --good-soft: #e3efe9;
+    --warn: #9b3b22;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
+    --serif: "EB Garamond", Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #171412; --surface: #201c19; --ink: #ece7e1; --muted: #a59f96; --rule: #3a322b;
+      --oxblood: #e39b8c; --accent: #f08a52; --accent-soft: #3a261b; --real: #5b9be6; --good: #6cc39b; --good-soft: #1e3129; --warn: #e48a6f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 var(--sans); }
+  main { max-width: 940px; margin: 0 auto; padding: 44px 16px 110px; }
+  h1 { font: 700 2.2rem/1.15 var(--serif); color: var(--oxblood); margin: 0 0 14px; }
+  h2 { font: 700 1.55rem/1.2 var(--serif); color: var(--oxblood); margin: 54px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: 1.12rem; margin: 30px 0 8px; }
+  h4 { font-size: 1rem; margin: 22px 0 6px; }
+  p, li { color: var(--ink); }
+  a { color: var(--oxblood); }
+  code { font: .86em var(--mono); background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+  pre { font: .82em/1.55 var(--mono); background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  figure { margin: 26px 0; text-align: center; }
+  figure img { max-width: 100%; border-radius: 14px; border: 1px solid var(--rule); display: block; margin: 0 auto; }
+  figcaption { font-size: .85rem; color: var(--muted); margin-top: 8px; }
+  details.meta { margin: 10px 0 6px; font-size: .85rem; color: var(--muted); }
+  details.meta dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; margin: 10px 0; }
+  details.meta dt { font-family: var(--mono); }
+  details.meta dd { margin: 0; overflow-wrap: anywhere; }
+  .lede { font-size: 1.08rem; color: var(--muted); }
+  .tag { display: inline-block; font: 600 .7rem var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 7px; border-radius: 999px; }
+  .tag.existing { background: var(--good-soft); color: var(--good); }
+  .tag.new { background: var(--accent-soft); color: var(--accent); }
+  .files li { margin: 4px 0; }
+  .phase { background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; padding: 6px 22px 18px; margin: 22px 0; }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { margin: 6px 0; padding-left: 0; }
+  .status { background: none; color: var(--muted); font-weight: 600; }
+  .loop { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 6px; font-size: .92rem; margin-top: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 14px 0; }
+  th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--rule); padding: 6px 8px 6px 0; }
+  td { border-bottom: 1px solid var(--rule); padding: 7px 8px 7px 0; vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 18px 0; }
+  .stats div { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 12px 14px; }
+  .stats strong { display: block; font-size: 1.5rem; }
+  .stats span { font-size: .8rem; color: var(--muted); }
+  .transcript { background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; padding: 4px 22px 12px; }
+  .beat { display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+  .beat:last-child { border-bottom: 0; }
+  .beat time { font: 600 .82rem var(--mono); color: var(--accent); padding-top: 3px; }
+  .beat .do { font-size: .82rem; color: var(--muted); margin: 0 0 6px; }
+  .beat .say { margin: 0; }
+  .beat .say::before { content: "“"; color: var(--accent); font-weight: 700; }
+  .beat .say::after { content: "”"; color: var(--accent); font-weight: 700; }
+  .beat img { max-width: 100%; border-radius: 10px; border: 1px solid var(--rule); margin-top: 10px; }
+  .exports { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
+  .exports div { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 14px; }
+  .exports b { display: block; margin-bottom: 4px; }
+  .exports span { font-size: .85rem; color: var(--muted); }
+  .callout { background: var(--good-soft); border-left: 3px solid var(--good); padding: 10px 14px; border-radius: 6px; margin: 16px 0; }
+  .qa-answer { color: var(--muted); }
+  @media (max-width: 600px) { .beat { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- ===== HEADER + UPDATABLE METADATA ===== -->
+  <header>
+    <h1>Plan: JADE demo, transcript and close exports</h1>
+    <p class="lede">Explain the problem in General Mills' own numbers, walk the real UI with a word-for-word script, and end on what a controller takes away: a flux PDF, an Excel workbook that checks itself, and a QuickBooks journal import.</p>
+    <details class="meta">
+      <summary>Metadata</summary>
+      <dl>
+        <dt>created</dt>      <dd>2026-10-25T05:16:10Z</dd>
+        <dt>modified</dt>     <dd>2026-10-25T05:16:10Z</dd>
+        <dt>commits</dt>      <dd>7b8e2c3</dd>
+        <dt>agent name</dt>        <dd>Claude Opus 5.5 (claude-opus-5-5)</dd>
+        <dt>session id</dt>      <dd>session_01MHcQGypB3cWA8m1upqfQi7</dd>
+        <dt>back refs</dt>    <dd>specs/part-b-cl-merge-readiness.html, docs/presenting.md, docs/integrations.md, docs/benchmarks.md, spec.md</dd>
+        <dt>forward refs</dt> <dd>none yet</dd>
+      </dl>
+    </details>
+  </header>
+
+  <figure>
+    <!-- {{HERO_IMAGE: the signed close becoming three deliverables: a PDF report, a spreadsheet, a QuickBooks import, flowing from one ledger}} -->
+    <figcaption>One signed close, three things a controller can hand on: the flux report, the workbook, the journal import.</figcaption>
+  </figure>
+
+  <!-- ===== PURPOSE / PROBLEM / SOLUTION ===== -->
+  <section id="purpose">
+    <h2>Purpose</h2>
+    <p>The product works; the pitch has to make a finance judge feel the problem in the first thirty seconds and leave with something they could use on Monday. This plan does three things:</p>
+    <ol>
+      <li><strong>Explains the problem</strong> with sourced numbers, not adjectives.</li>
+      <li><strong>Scripts the demo</strong> beat by beat on the real UI (screenshots below are from the running app), so any teammate can give it.</li>
+      <li><strong>Builds the ending</strong>: the close package leaves JADE as a <strong>flux PDF report</strong>, an <strong>Excel workbook</strong> with live check formulas, and a <strong>QuickBooks journal-entry import</strong>, each on an export menu with its logo.</li>
+    </ol>
+  </section>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p><strong>Trade promotion is the second-largest line on a food company's income statement after the cost of goods, and the most estimated.</strong> General Mills promises Walmart, Costco and Kroger money for selling its cereal: a scan-back on every unit sold, a fee for an end-cap, an allowance off every case. It books what it owes the day the truck leaves, as a reduction of revenue (ASC 606). The retailer collects months later by deducting from a payment, often at a different rate, citing a program from two quarters ago, with backup that doesn't tie. Two people (the trade promotion accountant and the deduction analyst) decide what was owed, what to dispute, and what the accrual should have been all along.</p>
+    <div class="stats">
+      <div><strong>$18.4B</strong><span>General Mills net sales, FY2026 (10-K)</span></div>
+      <div><strong>22%</strong><span>of it to Walmart (10-K)</span></div>
+      <div><strong>$493M</strong><span>accrued trade and coupon promotions, a named critical accounting estimate (10-K)</span></div>
+      <div><strong>~20%</strong><span>of CPG gross sales goes to trade (Strategy&amp;/PwC)</span></div>
+      <div><strong>−13 / +7 pts</strong><span>Q4 operating profit growth moved by trade timing, FY2025 / FY2026 (earnings releases)</span></div>
+      <div><strong>~$97</strong><span>to process one deduction by hand (CRF benchmark)</span></div>
+    </div>
+    <p>The failure that matters is not a bad claim; it is a <em>good document nobody entered</em>. In the simulation, Walmart and General Mills sign an amendment in February (TP-0214, $3.80 → $4.20 a case). It is filed and forgotten; six months close short. When it surfaces, someone must re-price closed months, explain the catch-up, and stop the sales lead who negotiated it from approving it. Real books show the same mechanism in public: General Mills told investors that trade expense timing cost 3 points of Q4 sales growth in FY2024 and added 7 points of Q4 profit growth in FY2026.</p>
+    <figure>
+      <!-- {{PROBLEM_IMAGE: a shipment accrued today, a deduction arriving months later, a widening gap between them on a calendar}} -->
+      <figcaption>The accrual is booked at shipment; the evidence that settles it arrives months later, by a different route.</figcaption>
+    </figure>
+  </section>
+
+  <section id="solution">
+    <h2>Solution</h2>
+    <p><strong>JADE, the Deterministic JADE Engine</strong>, takes both seats. It accrues on shipment, matches each deduction to its program, clears what the agreement supports, disputes what it doesn't, restates closed months when terms change, and packages the close for a person to sign. Every number is computed by code into an insert-only ledger; a model only drafts sentences. It asks a person only when the agreement can't settle the question, and reuses the answer.</p>
+    <p>The demo ends where a controller's month ends: the signed close leaves the system in the formats finance already uses.</p>
+    <div class="exports">
+      <div><b>Flux report (PDF)</b><span>Each material account's movement, explained by the journal lines that drove it; the analytical review against the 10-K; restatements then and now; who decided what. Ready to attach to the close binder.</span></div>
+      <div><b>Excel workbook (.xlsx)</b><span>Ledger, trial balance, reconciliation, gates and flux on separate sheets, with live <code>SUM</code> totals and <code>CHECK</code> cells that must read 0. The existing CSV check rows, as one file.</span></div>
+      <div><b>QuickBooks journal import</b><span>The period's summarized entries in QuickBooks Online's journal-entry import layout (and an IIF file for Desktop), accounts mapped to the company's chart. JADE stays the subledger; QuickBooks gets the posting.</span></div>
+    </div>
+    <figure>
+      <!-- {{SOLUTION_IMAGE: evidence flowing into one deterministic engine, a person signing, three outputs leaving}} -->
+      <figcaption>Evidence in, one write path, a person signs, the package goes out.</figcaption>
+    </figure>
+  </section>
+
+  <section id="transcript">
+    <h2>Demo transcript</h2>
+    <p>About three and a half minutes, on the live API (<code>scripts/demo_preview.sh</code>, Phase 1) or mock mode. Bold text in brackets is what to click. Numbers are the seed-1337 run and the cited filings; say them as written.</p>
+    <div class="transcript">
+      <div class="beat"><time>0:00</time><div>
+        <p class="do">[Overview, month 10. Don't click yet.]</p>
+        <p class="say">Every box of Cheerios on a Walmart shelf was sold on a promise: a scan-back for every unit, paid months later as a deduction from Walmart's payment. General Mills carries 493 million dollars of those promises on its balance sheet and calls the estimate critical in its 10-K. Two people a month decide what was owed. JADE does that job, and asks them only when the contract can't answer.</p>
+        <img src="jade-demo-and-close-exports/ui-overview.jpg" alt="JADE overview at month 10: a promotion restatement found, precision and recall 100%, the month stepper">
+      </div></div>
+      <div class="beat"><time>0:30</time><div>
+        <p class="do">[Month &amp; Period → Restatement Comparison.]</p>
+        <p class="say">In February Walmart signed an amendment raising TP-0214 from $3.80 to $4.20 a case. Nobody entered it; six months closed short. In August the document reached the books, and JADE found the gap on its own: $1,391,636.52 across February to July. Here is September after a second amendment: then, the accrual as it was booked; now, the catch-up, with nothing overwritten. Correct then and correct now are the same query at two times.</p>
+        <img src="jade-demo-and-close-exports/ui-restatement.jpg" alt="Restatement comparison: then, September's original accrual; now, the $190,415.99 catch-up from AM-03">
+      </div></div>
+      <div class="beat"><time>1:10</time><div>
+        <p class="do">[Integrations. Point at the Gmail tile, then the inbox list.]</p>
+        <p class="say">Most of what decides a deduction never reaches the ledger. It arrives by email. JADE reads the deductions inbox the way it reads contracts: by code, every field quoted from its sentence. A deduction notice becomes a deduction. A signed amendment becomes terms. Anything else is evidence, never an instruction.</p>
+        <img src="jade-demo-and-close-exports/ui-integrations.jpg" alt="Integrations map: Gmail and SEC EDGAR into the JADE engine; ledger, inbox and Excel package out; Retail Link planned">
+      </div></div>
+      <div class="beat"><time>1:35</time><div>
+        <p class="do">[Escalation Inbox → Controller → ESC-0018.]</p>
+        <p class="say">The Walmart sales lead wrote: four-fifty a case, paperwork to follow, please clear their claim at that rate. Then Walmart claimed September at four-fifty. Without that email, last year's precedent would dispute the difference and nobody senior would see it. With it, the controller gets the card, the email quoted, and JADE recommends holding. An email is not an amendment. <strong>[Answer as: Walmart sales lead → “Customer's claimed rate” → Submit. The refusal appears.]</strong> And the person who negotiated the deal can't approve its claim: that's a refusal in code, not a prompt.</p>
+        <img src="jade-demo-and-close-exports/ui-email-card.jpg" alt="Controller's card: the sales lead's email flagged 'Nothing signed', beside Walmart's deduction notice">
+      </div></div>
+      <div class="beat"><time>2:15</time><div>
+        <p class="do">[Backtest. Hover FY22 on the first chart.]</p>
+        <p class="say">Deduction data is never public, so we tested what is: sixteen years of General Mills' trade liability, walked forward so no close sees its own 10-K. Audited books swung 22 percent in a year. The usual plus-or-minus-50 review can't fail; we calibrate it on the real history. And the best top-down estimate still misses by 9 percent, which is why JADE accrues program by program instead.</p>
+        <img src="jade-demo-and-close-exports/ui-backtest.jpg" alt="Backtest: the liability as a share of net sales, FY2011–FY2026, and the estimate at each close against the 10-K">
+      </div></div>
+      <div class="beat"><time>2:45</time><div>
+        <p class="do">[Month &amp; Period → Flux &amp; Close Review.]</p>
+        <p class="say">The close explains itself. Accrued trade promotion moved 1.2 percent in October, and every dollar of that sentence is a sum of named journal lines you can click. So far this year, thirty-four of thirty-five repeat situations settled by an answer someone gave once.</p>
+        <img src="jade-demo-and-close-exports/ui-flux.jpg" alt="Flux and close review: the 2300 liability's movement explained by its journal entries">
+      </div></div>
+      <div class="beat"><time>3:10</time><div>
+        <p class="do">[Export ▾ → Flux report (PDF), then Excel, then QuickBooks. Open the PDF.]</p>
+        <p class="say">And it leaves the way a controller's month leaves: a flux report for the binder, a workbook whose check cells read zero, and a journal import for QuickBooks. JADE keeps the subledger; your general ledger gets the posting, signed by a person.</p>
+      </div></div>
+      <div class="beat"><time>3:30</time><div>
+        <p class="do">[Stop.]</p>
+        <p class="say">Deterministic where money moves, a person where judgment is needed, and every number traceable to the line that made it. That's JADE.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ===== RELEVANT FILES ===== -->
+  <section id="files" class="files">
+    <h2>Relevant Files</h2>
+
+    <h3>Existing Files</h3>
+    <ul>
+      <li><span class="tag existing">existing</span> <code>tpa/package.py</code> — the sign-off package (postings, balances, findings with answers, gates as of, flux, analytical review, reconciliation). Every export reads it; nothing recomputes.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/export.py</code> — today's CSVs with TOTAL/CHECK formula rows and formula-injection escaping; the Excel and QuickBooks writers reuse its row builders and <code>parse_as_of</code>.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/flux.py</code> — flux narratives templated from journal-line sums; the PDF prints them with their driver entry ids.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/review.py</code> — the analytical review against the latest 10-K; a boxed section of the PDF.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/api.py</code> — <code>GET /api/period/{p}/export/{file}</code>; new files are added to the same route.</li>
+      <li><span class="tag existing">existing</span> <code>tpa/constants.py</code> — <code>Account</code> codes the QuickBooks mapping keys on (4100 is contra-revenue, never expense).</li>
+      <li><span class="tag existing">existing</span> <code>frontend/src/PeriodPage.tsx</code> — the "Export close package" button becomes the export menu.</li>
+      <li><span class="tag existing">existing</span> <code>frontend/src/api/{types,client,mock}.ts</code> — <code>exportUrl</code> and <code>ExportFile</code> gain the new formats; mock mode serves captured files.</li>
+      <li><span class="tag existing">existing</span> <code>frontend/public/brand/</code> — logos and CREDITS.md; QuickBooks joins them.</li>
+      <li><span class="tag existing">existing</span> <code>scripts/demo.sh</code>, <code>scripts/demo_mail.py</code>, <code>scripts/step.py</code> — the demo state is built from these.</li>
+      <li><span class="tag existing">existing</span> <code>docs/presenting.md</code>, <code>README.md</code> — where the transcript and the export story land.</li>
+    </ul>
+
+    <h3>New Files</h3>
+    <ul>
+      <li><span class="tag new">new</span> <code>scripts/demo_preview.sh</code> — one command to the demo state: seed, play January–September, land the side letter, claim and amendment by email, run October, start API and UI.</li>
+      <li><span class="tag new">new</span> <code>tpa/report_pdf.py</code> — the flux and close report as a PDF (reportlab), from the package.</li>
+      <li><span class="tag new">new</span> <code>tpa/export_xlsx.py</code> — the close workbook (openpyxl): one sheet per CSV plus Flux and Read me, live formulas, CHECK cells formatted pass/fail.</li>
+      <li><span class="tag new">new</span> <code>tpa/export_quickbooks.py</code> — summarized journal entries as a QuickBooks Online import CSV and a QuickBooks Desktop IIF file.</li>
+      <li><span class="tag new">new</span> <code>config/quickbooks_accounts.csv</code> — JADE account → QuickBooks account name and type; the company edits this, not the code.</li>
+      <li><span class="tag new">new</span> <code>tests/test_exports.py</code> — the three formats tie to the package to the cent; CHECK formulas evaluate to 0; QuickBooks entries balance per journal.</li>
+      <li><span class="tag new">new</span> <code>frontend/src/ExportMenu.tsx</code>, <code>ExportMenu.css</code> — the menu with logos: PDF, Excel, QuickBooks, CSV.</li>
+      <li><span class="tag new">new</span> <code>frontend/public/brand/quickbooks.svg</code>, <code>sheet.svg</code>, <code>pdf.svg</code> — QuickBooks from Simple Icons (CC0); neutral marks for the sheet and PDF (Microsoft and Adobe marks are not used).</li>
+      <li><span class="tag new">new</span> <code>docs/demo-transcript.md</code> — the transcript above, as plain text for rehearsal.</li>
+    </ul>
+  </section>
+
+  <!-- ===== IMPLEMENTATION PHASES ===== -->
+  <section id="phases">
+    <h2>Implementation Phases</h2>
+    <p><strong>IMPORTANT:</strong> Execute every phase and task step by step, in order, top to bottom.</p>
+    <p>Status markers: <code>[]</code> idle · <code>[wip]</code> in progress · <code>[x]</code> complete · <code>[f]</code> failed. All start as <code>[]</code>; the Build Plan workflow updates them as it works.</p>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 1: One command to the demo state</h3>
+      <p>The transcript assumes October with three emails landed and two cards open for the controller. Today that takes five commands typed in order; a demo needs one, and it must never touch the demo database by accident.</p>
+
+      <h4>1. <code>scripts/demo_preview.sh</code></h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Take the target database from <code>DEMO_DATABASE_URL</code> (default <code>TEST_DATABASE_URL</code>); refuse to run against <code>DATABASE_URL</code> unless <code>--yes-reset-demo</code> is passed.</li>
+        <li><code class="status">[]</code> Run <code>scripts/step.py --reset --through month-9 --players</code>, then <code>demo_mail.py run side-letter --no-step</code> and <code>demo_mail.py run amendment</code> with <code>JADE_MAIL_BACKEND=local</code> and a fresh <code>JADE_MAIL_DIR</code>.</li>
+        <li><code class="status">[]</code> Start <code>uvicorn tpa.api:app --port 8011</code> with <code>TPA_HUMANS=inbox</code> and Vite in http mode on 5183; print the URL and the stop command.</li>
+        <li><code class="status">[]</code> <code>--gmail</code> switches the mail step to the Gmail backend (needs <code>gws auth login -s gmail</code>); otherwise local, so the rehearsal never depends on the network.</li>
+      </ul>
+
+      <h4>2. Testing Strategy</h4>
+      <p>Run the script against the scratch database and check the state the transcript names, through the API.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>scripts/demo_preview.sh &amp;&amp; curl -sf localhost:8011/api/clock</code> — the clock reads 2026-11 (October has run).</li>
+        <li><code class="status">[]</code> <code>curl -sf localhost:8011/api/escalations | jq '[.[] | select(.to_role=="controller")] | length'</code> — 2 open controller cards (ESC-0018 hold, ESC-0019 restatement).</li>
+        <li><code class="status">[]</code> <code>DATABASE_URL=… scripts/demo_preview.sh</code> without the flag — refuses and exits non-zero.</li>
+      </ul>
+      <div class="loop">🔁 <strong>Do not exit this phase until every box above is checked.</strong> If any command fails, fix the cause and re-run — loop until all pass.</div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 2: The flux report as a PDF</h3>
+      <p>The document a controller attaches to the close binder. It prints what the package already holds; it computes nothing.</p>
+      <figure>
+        <!-- {{PHASE_IMAGE: a clean two-page financial report spread: an account movement table with small journal ids, a boxed ratio check}} -->
+        <figcaption>Page one: what moved and why. Page two: what was decided, by whom, and what it proves.</figcaption>
+      </figure>
+
+      <h4>1. Content, in this order</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Header: JADE mark, "Close package · General Mills (simulation) · {period}", as-of time, period state, signed by and when (or "unsigned").</li>
+        <li><code class="status">[]</code> Flux: per account over materiality, opening → closing, change %, the narrative, and its driver journal ids in a small mono line.</li>
+        <li><code class="status">[]</code> Analytical review box: liability / annualized net sales, the 10-K expectation and range, inside or outside, and the 10-K citation.</li>
+        <li><code class="status">[]</code> Restatements: then and now per period (original accrual, catch-up, amended rate, journal ids).</li>
+        <li><code class="status">[]</code> Decisions: each finding with its card, answer, who answered, precedent id; segregation-of-duties refusals listed as refusals.</li>
+        <li><code class="status">[]</code> Reconciliation identity per program and the five gates, pass/fail. Footer on every page: "Every amount is a sum of named journal lines. Prepared by JADE; approved by {signer}."</li>
+      </ul>
+
+      <h4>2. Build</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>uv add reportlab</code>; <code>tpa/report_pdf.py</code> with <code>render(pkg: dict) -&gt; bytes</code>, using Platypus tables, the parchment/oxblood/orange palette, Decimal formatted with <code>f"{x:,.2f}"</code> (never floats).</li>
+        <li><code class="status">[]</code> Route: <code>GET /api/period/{p}/export/flux_report.pdf?as_of=</code> with <code>application/pdf</code> and a dated filename.</li>
+      </ul>
+<pre><code>def render(pkg: dict) -&gt; bytes:
+    doc = SimpleDocTemplate(buf, pagesize=letter, title=f"JADE close {pkg['period']}")
+    story = [header(pkg), *flux_tables(pkg["flux"]), review_box(pkg.get("analytical_review")),
+             *restatements(pkg), decisions(pkg), reconciliation(pkg), gates(pkg)]
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return buf.getvalue()</code></pre>
+
+      <h4>3. Testing Strategy</h4>
+      <p>pytest against a played October; text extracted from the PDF must carry the package's numbers exactly.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>uv run pytest tests/test_exports.py -k pdf</code> — the PDF opens, has the period, every flux amount and driver id, and the restatement $190,415.99.</li>
+        <li><code class="status">[]</code> <code>curl -sf localhost:8011/api/period/2026-10/export/flux_report.pdf -o /tmp/flux.pdf &amp;&amp; file /tmp/flux.pdf</code> — "PDF document".</li>
+        <li><code class="status">[]</code> An unsigned period prints "unsigned" in the header and the footer; a period with no flux prints "No account moved past materiality".</li>
+      </ul>
+      <div class="loop">🔁 <strong>Do not exit this phase until every box above is checked.</strong> If any command fails, fix the cause and re-run — loop until all pass.</div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 3: The Excel workbook</h3>
+      <p>The four CSVs as one workbook a reviewer opens and trusts: totals and checks are live formulas Excel recomputes, beside the computed values.</p>
+
+      <h4>1. Build</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>uv add openpyxl</code>; <code>tpa/export_xlsx.py</code> with sheets Read me, Flux, Ledger, Trial balance, Reconciliation, Gates.</li>
+        <li><code class="status">[]</code> Reuse <code>tpa/export.py</code>'s row builders; write amounts as numbers with <code>#,##0.00</code>, ids and memos as text (formula injection stays escaped).</li>
+        <li><code class="status">[]</code> TOTAL rows as <code>=SUM()</code>; CHECK cells (<code>=debits−credits</code>, <code>=ending−(opening+accruals+adjustments−settled)</code>) with conditional formatting green at 0, red otherwise.</li>
+        <li><code class="status">[]</code> Freeze the header row, autosize columns, a header band with the JADE mark and the period; route <code>export/close_package.xlsx</code>.</li>
+      </ul>
+
+      <h4>2. Testing Strategy</h4>
+      <p>Tie every sheet to the package, and evaluate the CHECK formulas without Excel.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>uv run pytest tests/test_exports.py -k xlsx</code> — each sheet's row count and totals equal the package; every CHECK cell's formula, evaluated from the sheet's own values, is 0.</li>
+        <li><code class="status">[]</code> A memo starting with <code>=</code> is stored as text, not a formula.</li>
+        <li><code class="status">[]</code> Open in Excel and Numbers once by hand; CHECK cells are green.</li>
+      </ul>
+      <div class="loop">🔁 <strong>Do not exit this phase until every box above is checked.</strong> If any command fails, fix the cause and re-run — loop until all pass.</div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 4: The QuickBooks journal import</h3>
+      <p>JADE is the trade promotion subledger; the general ledger receives one summarized entry per journal type and customer for the period. The company imports the file in QuickBooks; nothing posts without a person.</p>
+      <figure>
+        <!-- {{PHASE_IMAGE: subledger detail lines collapsing into a few balanced summary journal entries, handed to a general ledger}} -->
+        <figcaption>Many subledger lines in, a few balanced journals out, each citing the JADE journal ids it summarizes.</figcaption>
+      </figure>
+
+      <h4>1. Account mapping</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>config/quickbooks_accounts.csv</code>: <code>jade_account, qb_account_name, qb_account_type</code>. Defaults: 1200 → Accounts Receivable (A/R); 1250 → Deductions Pending (Other Current Asset); 1260 → Disputed Deductions (Other Current Asset); 2300 → Accrued Trade Promotions (Other Current Liability); 4000 → Sales (Income); 4100 → Trade Promotion Allowances (Income, contra); 6900 → Deduction Write-offs (Expense).</li>
+        <li><code class="status">[]</code> Refuse to export if any posted account has no mapping, naming the account. 4100 must map to an income-type account (rule 1: contra-revenue, never expense); refuse otherwise.</li>
+      </ul>
+
+      <h4>2. Files</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>quickbooks_online.csv</code>: one row per line with Journal No., Journal Date, Account, Debits, Credits, Description, Name. Journal No. <code>JADE-{period}-{entry_type}-{customer}</code>; Description lists the JADE journal ids; Name is the customer on every A/R line (QuickBooks requires it).</li>
+        <li><code class="status">[]</code> <code>quickbooks_desktop.iif</code>: TRNS/SPL/ENDTRNS blocks, GENERAL JOURNAL type, the same journals.</li>
+        <li><code class="status">[]</code> Routes <code>export/quickbooks_online.csv</code> and <code>export/quickbooks_desktop.iif</code>; only for a SIGNED period (409 otherwise: an unsigned close doesn't go to the general ledger).</li>
+      </ul>
+
+      <h4>3. Testing Strategy</h4>
+      <p>Balance and tie-out, then one real import into a QuickBooks Online sandbox company before the demo.</p>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>uv run pytest tests/test_exports.py -k quickbooks</code> — each journal's debits equal credits; the sum per account equals the trial balance movement for the period.</li>
+        <li><code class="status">[]</code> An unmapped account and a 4100 mapped to Expense are both refused with the account named.</li>
+        <li><code class="status">[]</code> <code>curl -s -o /dev/null -w "%{http_code}" localhost:8011/api/period/2026-10/export/quickbooks_online.csv</code> — 409 while October is unsigned, 200 after signing.</li>
+        <li><code class="status">[]</code> Import the CSV into a QuickBooks Online sandbox (Settings → Import data → Journal entries); the journals appear balanced. Screenshot it for the deck.</li>
+      </ul>
+      <div class="loop">🔁 <strong>Do not exit this phase until every box above is checked.</strong> If any command fails, fix the cause and re-run — loop until all pass.</div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 5: The export menu, with logos</h3>
+      <p>The last click of the demo. The "Export close package" button becomes a menu in the style of the Integrations tiles: a logo, a name, one line on what the file is.</p>
+
+      <h4>1. Build</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>ExportMenu.tsx</code>: Flux report (PDF), Close workbook (Excel), QuickBooks Online, QuickBooks Desktop (IIF), CSVs (the existing four). Each item is a link to <code>client.exportUrl(period, file, asOf)</code>.</li>
+        <li><code class="status">[]</code> QuickBooks items disabled with the reason ("Sign the period first") until the period is SIGNED; the reason shows on hover and for screen readers.</li>
+        <li><code class="status">[]</code> Logos in <code>frontend/public/brand/</code>: <code>quickbooks.svg</code> (Simple Icons, CC0, #2CA01C); neutral <code>sheet.svg</code> (green grid) and <code>pdf.svg</code> (oxblood page); credits updated. The menu also appears on Flux &amp; Close Review.</li>
+        <li><code class="status">[]</code> Mock mode: capture October's three files into <code>frontend/public/fixtures/</code> (a fixture script, like the others) and serve them, so the demo works offline.</li>
+      </ul>
+
+      <h4>2. Testing Strategy</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>cd frontend &amp;&amp; bun run build &amp;&amp; bun test</code> — types, the menu's disabled state, and URLs per format.</li>
+        <li><code class="status">[]</code> In the browser, each item downloads a file whose name carries the period; screenshot the open menu for the README.</li>
+      </ul>
+      <div class="loop">🔁 <strong>Do not exit this phase until every box above is checked.</strong> If any command fails, fix the cause and re-run — loop until all pass.</div>
+    </div>
+
+    <div class="phase">
+      <h3><code class="status">[]</code> Phase 6: Rehearse and ship the pitch</h3>
+      <p>The transcript only works if it has been said out loud against the real UI, on time.</p>
+      <h4>1. Tasks</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> Copy the transcript to <code>docs/demo-transcript.md</code>; link it from <code>docs/presenting.md</code> and the README.</li>
+        <li><code class="status">[]</code> Rehearse twice from <code>demo_preview.sh</code>; trim any beat over its time. Record one clean run as the backup video.</li>
+        <li><code class="status">[]</code> Gmail live only if the <code>--gmail</code> run has worked twice in a row; otherwise local mailbox, said plainly.</li>
+        <li><code class="status">[]</code> Add the export menu and a page of the PDF to the README's close section.</li>
+      </ul>
+      <h4>2. Testing Strategy</h4>
+      <ul class="checklist">
+        <li><code class="status">[]</code> <code>make test</code> — green before every commit (AGENTS.md).</li>
+        <li><code class="status">[]</code> A full timed run from a cold start lands under 3:45.</li>
+      </ul>
+      <div class="loop">🔁 <strong>Do not exit this phase until every box above is checked.</strong> If any command fails, fix the cause and re-run — loop until all pass.</div>
+    </div>
+  </section>
+
+  <!-- ===== GLOBAL VALIDATION ===== -->
+  <section id="validation">
+    <h2>Validation Commands</h2>
+    <p>Execute these commands to validate the entire plan is complete:</p>
+    <ul class="checklist">
+      <li><code class="status">[]</code> <code>make test</code> — the whole suite, including <code>tests/test_exports.py</code>.</li>
+      <li><code class="status">[]</code> <code>cd frontend &amp;&amp; bun run build &amp;&amp; bun test</code> — the UI builds and its tests pass.</li>
+      <li><code class="status">[]</code> <code>scripts/demo_preview.sh</code> — reaches the transcript's state in one command.</li>
+      <li><code class="status">[]</code> <code>for f in flux_report.pdf close_package.xlsx quickbooks_online.csv; do curl -sf -o /tmp/$f localhost:8011/api/period/2026-10/export/$f; done</code> — all three download once October is signed.</li>
+      <li><code class="status">[]</code> The QuickBooks Online sandbox import succeeds and balances.</li>
+    </ul>
+    <div class="loop">🔁 <strong>The plan is not complete until every box is checked and every command passes. If for some reason a step is not possible to complete, mark it with [f] and move on if possible.</strong></div>
+  </section>
+
+  <!-- ===== NOTES ===== -->
+  <section id="notes">
+    <h2>Notes</h2>
+    <h3>Why import files, not a live QuickBooks connection</h3>
+    <p>A live push needs an Intuit developer app, OAuth, and a sandbox company, and it moves money-shaped data into someone's books without a person looking. An import file is what controllers already use to move a subledger into QuickBooks: reviewable, reversible before posting, and real. The logo on the menu says where the file goes; the file format is what makes the claim true. A live connection is future work behind the same mapping file.</p>
+
+    <h3>Accounting guardrails the exports keep</h3>
+    <ul>
+      <li>Trade promotion stays contra-revenue in every format (rule 1); the QuickBooks mapping refuses an expense account for 4100.</li>
+      <li>Exports are read-only views of the package; the ledger's one write path is untouched. Restatements appear as their own lines, never netted into originals.</li>
+      <li>Only a signed period goes to the general ledger file. The PDF and workbook can be produced unsigned for review, and say so on every page.</li>
+      <li>Every number in the PDF and workbook is the package's Decimal, formatted, never re-derived or passed through a float.</li>
+    </ul>
+
+    <h3>Dependencies</h3>
+    <p><code>uv add reportlab openpyxl</code>. Both are pure Python wheels; no system libraries (WeasyPrint was rejected for needing Pango).</p>
+
+    <h3>Risks</h3>
+    <table>
+      <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td>QuickBooks Online's journal import columns differ from what is assumed here</td><td>Phase 4's sandbox import before the demo; adjust the column names in one place in <code>export_quickbooks.py</code>.</td></tr>
+        <tr><td>Live Gmail or network fails on stage</td><td>Local mailbox by default; mock mode serves captured exports.</td></tr>
+        <tr><td>A judge reads "General Mills" as an endorsement</td><td>Every export header says "General Mills (simulation)"; the README states the project is not affiliated.</td></tr>
+        <tr><td>Brand marks</td><td>Only Simple Icons (CC0) marks used nominatively; no Microsoft or Adobe logos; credits in <code>frontend/public/brand/CREDITS.md</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Sources for the problem numbers</h3>
+    <ul>
+      <li>General Mills FY2026 10-K (net sales, Walmart share, $493M critical estimate) — cited in <code>tpa/seed/calibration.py</code>.</li>
+      <li>Trade expense timing, Q4 FY2024–FY2026 earnings releases — quoted in <code>tpa/filings.py</code>.</li>
+      <li>Trade spend ~20% of gross sales (Strategy&amp;/PwC 2017); ~$97 per deduction (CRF 2012, via Clarkston) — <code>docs/benchmark-sources.md</code>.</li>
+    </ul>
+    <figure>
+      <!-- {{NOTES_IMAGE: a four-beat demo timeline: problem, restatement, email, close package}} -->
+      <figcaption>The demo in four beats: the problem, the reopened books, the email, the close that leaves.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== AMENDMENTS ===== -->
+  <section id="amendments">
+    <h2>Amendments</h2>
+    <p class="qa-answer">None yet.</p>
+  </section>
+
+</main>
+</body>
+</html>

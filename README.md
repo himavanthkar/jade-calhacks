@@ -181,6 +181,7 @@ Python · FastAPI · Postgres 16 (bitemporal, insert-only ledger) · Claude · R
 
 | | |
 |---|---|
+| [Pitch](PITCH.md) | the problem in cited numbers, the demo in four beats, the brief for the video agent |
 | [Getting started](docs/getting-started.md) | setup, `make` targets, the frontend |
 | [Architecture](docs/architecture.md) | the six layers, how a month runs, code map, engine hooks |
 | [People and controls](docs/people-and-controls.md) | who decides what, cards, precedents, segregation of duties |

@@ -23,7 +23,7 @@ export default function DecisionTree({ card }: { card: Escalation }) {
         <span className="dt-node">✓</span>
         <div className="dt-body"><p className="dt-q">{p.leaf.title}</p><p className="dt-detail">{p.leaf.detail}</p></div>
       </li>
-      <li className={`dt-step outcome ${p.outcome.done ? 'done' : 'open'}`}>
+      <li className={`dt-step outcome ${p.outcome.done ? 'dt-done' : 'dt-open'}`}>
         <span className="dt-node">{p.outcome.done ? '●' : '○'}</span>
         <div className="dt-body"><p className="dt-q">{p.outcome.done ? 'Decided' : 'Open'}</p><p className="dt-detail">{p.outcome.text}</p></div>
       </li>

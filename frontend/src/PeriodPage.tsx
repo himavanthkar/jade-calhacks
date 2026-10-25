@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { apiMode } from './api'
-import type { Period, Metrics, TradePromotionApi, Finding } from './api'
+import type { Period, Metrics, TradePromotionApi, Finding, ExportFile } from './api'
 import './PeriodPage.css'
 import JournalEntries from './JournalEntries'
 import VerificationGates from './VerificationGates'
@@ -21,6 +21,7 @@ export default function PeriodPage({period, metrics, client, tab, onTab, error, 
   const date = period ? new Date(`${period.period}-01T12:00:00`).toLocaleDateString('en-US',{month:'long',year:'numeric'}) : ''
   async function run(action:()=>Promise<void>) {if(busy)return;setBusy(true);setActionError('');try{await action()}catch(e){setActionError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
   async function exportPackage(){if(!period)return;await run(async()=>{const result=await client.getPackage(period.period);const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`close-package-${period.period}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)})}
+  const downloads: {name:string;file:ExportFile}[] = [{name:'Flux report PDF',file:'flux_report.pdf'},{name:'Excel close workbook',file:'close_package.xlsx'},{name:'QuickBooks journal CSV',file:'quickbooks_online.csv'}]
   const findingList = (items:Finding[]) => items.length ? items.map(f=><details key={f.id}><summary>{f.id} · {human(f.state)} · {money(f.amount)}</summary><p>{String(f.evidence.summary??f.control_id)}</p><pre>{JSON.stringify(f.evidence,null,2)}</pre></details>) : <p className="period-empty">No findings in this period.</p>
   const gateList = <div className="period-gates">{gates.map((g,i)=><details key={g.name}><summary><span className={`gate-dot ${g.passed?'passed':''}`}>{g.passed?<img src="/figma/jade/gate-check.svg" alt=""/>:i+1}</span><span><strong>{human(g.name)}</strong><small>{g.passed?'Passed':`${g.violations.length} violations`}</small></span><b className={g.passed?'green':'review'}>● {g.passed?'Complete':'Review'}</b></summary><p>{g.description}</p>{g.violations.length>0&&<pre>{JSON.stringify(g.violations,null,2)}</pre>}</details>)}{!gates.length&&<p className="period-empty">No verification results available.</p>}</div>
   return <main className="period-page"><header className="period-heading"><div><p className="eyebrow">{period?`MONTH ${Number(period.period.slice(5))} · ${date.toUpperCase()}`:'LOADING PERIOD'}</p><h1>Month &amp; Period</h1><p>Process the month, verify outputs, and restate prior accounting when new evidence changes the decision.</p></div><div className="period-actions"><button disabled={!period||apiMode==='mock'} title={apiMode==='mock'?'Run the API to open the close report.':'Open the close report; print it to PDF'} onClick={()=>period&&window.open(client.exportUrl(period.period,'close_report.html'),'_blank')}>Close report</button><button disabled={!period||busy||(apiMode==='mock'&&period.period!=='2026-02')} title="Download the close package as JSON" onClick={exportPackage}>{busy?'Loading…':'JSON'}</button><button className="orange" disabled={!period} onClick={()=>onTab('Flux & Close Review')}>{period?.state==='CLOSED'?'Review close':'Continue close'}</button></div></header>
@@ -32,6 +33,6 @@ export default function PeriodPage({period, metrics, client, tab, onTab, error, 
   {tab==='Verification Gates'&&<VerificationGates period={period}/>}
   {tab==='Journal Entries'&&<JournalEntries postings={period.postings} client={client}/>}
   {tab==='Restatement Comparison'&&<RestatementComparison period={period} client={client}/>}
-  {tab==='Flux & Close Review'&&<FluxReview flux={period.flux} client={client}/>}
+  {tab==='Flux & Close Review'&&<><FluxReview flux={period.flux} client={client}/><section className="close-export-panel"><div><h2>Take the close with you</h2><p>Review the flux and workbook; map accounts to your QuickBooks chart before import.</p></div><div>{downloads.map(item=>apiMode==='mock'?<button key={item.file} disabled title="Connect the live JADE API to download this file">{item.name}</button>:<a key={item.file} href={client.exportUrl(period.period,item.file)} download={`${period.period}_${item.file}`} aria-label={`Download ${item.name}`}>{item.name} ↓</a>)}</div></section></>}
   </>}{detail&&<div className="period-evidence" role="region" aria-label="Journal evidence"><button onClick={()=>setDetail('')}>Close evidence</button><pre>{detail}</pre></div>}</main>
 }

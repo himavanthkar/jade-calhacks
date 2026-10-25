@@ -29,7 +29,9 @@ function lastRun(clock: Clock) {
 }
 
 export default function App() {
-  const [showLanding, setShowLanding] = useState(true)
+  // ?escalation=ESC-0018 opens that card in Decisions, past the landing; its lane is found once the cards load.
+  const [deepLink] = useState(() => new URLSearchParams(window.location.search).get('escalation') ?? '')
+  const [showLanding, setShowLanding] = useState(!deepLink)
   const client = useMemo(() => apiMode === 'mock' ? createMockApi('moment') : api, [])
   const [data, setData] = useState<{clock: Clock; period: Period; metrics?: Metrics; baseline?: Metrics; controls: Control[]; cards: Escalation[]}>()
   const [stepping, setStepping] = useState(false)
@@ -37,12 +39,13 @@ export default function App() {
   const [stepped, setStepped] = useState<StepSummary>()
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
-  const [view, setView] = useState('Overview')
+  const [view, setView] = useState(deepLink ? 'Escalation Inbox' : 'Overview')
   const [periodTab, setPeriodTab] = useState('Period Status')
   const [periodNavOpen, setPeriodNavOpen] = useState(false)
   const [drawer, setDrawer] = useState('')
   const [query, setQuery] = useState('')
-  const [focus, setFocus] = useState<{ id: string; role: string }>()
+  const [focus, setFocus] = useState<{ id: string; role?: string } | undefined>(deepLink ? { id: deepLink } : undefined)
+  useEffect(() => { if (deepLink) { const u = new URL(window.location.href); u.searchParams.delete('escalation'); window.history.replaceState(null, '', u) } }, [deepLink])
   useEffect(() => {
     const controller = new AbortController()
     const options = { signal: controller.signal }
@@ -75,7 +78,7 @@ export default function App() {
   const dateLabel = data ? new Date(`${data.period.period}-01T12:00:00`).toLocaleDateString('en-US', {month:'long',year:'numeric'}) : 'August 2026'
   const nav = (name: string, asset: string, label = name) => <button className={`nav-item ${view === name ? 'active' : ''}`} aria-expanded={name === 'Month & Period' ? periodNavOpen : undefined} aria-controls={name === 'Month & Period' ? 'period-navigation' : undefined} onClick={() => {setView(name);if(name === 'Month & Period')setPeriodNavOpen(open=>!open)}}>{icon(asset)}<span>{label}</span>{name === 'Month & Period' && <span aria-hidden="true" className={`chevron ${periodNavOpen ? 'expanded' : ''}`}>›</span>}</button>
   return <>
-    {showLanding && <div className="landing-overlay"><LandingPage onEnter={() => {setShowLanding(false);window.scrollTo(0, 0)}}/></div>}
+    {showLanding && <div className="landing-overlay"><LandingPage onEnter={v => {if (v) setView(v);if (v === 'Month & Period') setPeriodNavOpen(true);setShowLanding(false);window.scrollTo(0, 0)}}/></div>}
     <div inert={showLanding} className={`app-shell ${view === 'Month & Period' ? 'period-active' : ''}`}>
     <aside className="sidebar"><a href="#" className="brand" onClick={e => {e.preventDefault();setView('Overview')}}><b className="brand-mark">J</b><span><strong>JADE</strong></span></a>
       <div className="organization"><b>GM</b><div><strong>General Mills</strong><small>US Retail Finance</small></div>{icon('imgIcon4')}</div>

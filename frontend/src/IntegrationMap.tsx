@@ -4,15 +4,16 @@ import type { Integration } from './api'
  *  planned ones are dashed outlines with no logo, so nothing on the map claims more than the code does. */
 type Node = { id: string; x: number; y: number; name: string; note: string; icon?: string; planned?: boolean; flow: string; side: 'in' | 'out' | 'up' }
 const NODES: Node[] = [
-  { id: 'gmail', x: 140, y: 110, name: 'Gmail', note: 'deductions inbox', icon: '/brand/gmail.svg', flow: 'notices · backup · amendments', side: 'in' },
-  { id: 'edgar', x: 140, y: 240, name: 'SEC EDGAR', note: '10-K figures', icon: '/brand/sec.svg', flow: 'the ratio the close checks', side: 'in' },
-  { id: 'retail', x: 140, y: 370, name: 'Retail Link · EDI 820', note: 'planned', planned: true, flow: 'portal deductions, remittances', side: 'in' },
-  { id: 'claude', x: 480, y: 84, name: 'Claude', note: 'drafts card wording', icon: '/brand/claude.svg', flow: 'words only, never numbers', side: 'up' },
-  { id: 'inbox', x: 820, y: 110, name: 'Escalation inbox', note: 'controller · analysts', flow: 'cards for a person', side: 'out' },
-  { id: 'ledger', x: 820, y: 240, name: 'Postgres ledger', note: 'insert-only, bitemporal', icon: '/brand/postgresql.svg', flow: 'one write path', side: 'out' },
-  { id: 'export', x: 820, y: 370, name: 'Excel close package', note: 'CSV with check rows', flow: 'signed by a person', side: 'out' },
+  { id: 'gmail', x: 140, y: 140, name: 'Outlook', note: 'shared deductions mailbox', icon: '/brand/outlook.svg', flow: 'notices · backup · amendments', side: 'in' },
+  { id: 'edgar', x: 140, y: 270, name: 'SEC EDGAR', note: '10-K figures', icon: '/brand/sec.svg', flow: 'the ratio the close checks', side: 'in' },
+  { id: 'retail', x: 140, y: 400, name: 'Retail Link · EDI 820', note: 'planned', planned: true, flow: 'portal deductions, remittances', side: 'in' },
+  { id: 'claude', x: 480, y: 90, name: 'Claude', note: 'drafts card wording', icon: '/brand/claude.svg', flow: 'words only, never numbers', side: 'up' },
+  { id: 'inbox', x: 820, y: 75, name: 'Escalation inbox', note: 'controller · analysts', flow: 'cards for a person', side: 'out' },
+  { id: 'teams', x: 820, y: 195, name: 'Microsoft Teams', note: '#trade-close channel', icon: '/brand/teams.svg', flow: 'cards · approvals', side: 'out' },
+  { id: 'ledger', x: 820, y: 315, name: 'Postgres ledger', note: 'insert-only, bitemporal', icon: '/brand/postgresql.svg', flow: 'one write path', side: 'out' },
+  { id: 'export', x: 820, y: 435, name: 'Excel close package', note: 'CSV with check rows', flow: 'signed by a person', side: 'out' },
 ]
-const HUB = { x: 480, y: 250 }
+const HUB = { x: 480, y: 270 }
 
 function path(n: Node) {
   if (n.side === 'up') return `M${n.x},${n.y + 40} L${HUB.x},${HUB.y - 52}`
@@ -26,14 +27,14 @@ function path(n: Node) {
 export default function IntegrationMap({ integrations }: { integrations: Integration[] }) {
   const live = (id: string) => integrations.find(i => i.id === id)?.status !== 'not_connected'
   return <figure className="integration-map">
-    <svg viewBox="0 0 960 470" role="img" aria-labelledby="map-title map-desc">
+    <svg viewBox="0 0 960 540" role="img" aria-labelledby="map-title map-desc">
       <title id="map-title">JADE's integrations</title>
-      <desc id="map-desc">Gmail and SEC EDGAR feed the JADE engine; Claude drafts card wording; the engine writes to an insert-only Postgres ledger, sends cards to the escalation inbox and exports the close package. Retail Link and EDI 820 are planned.</desc>
+      <desc id="map-desc">Outlook and SEC EDGAR feed the JADE engine; Claude drafts card wording; the engine writes to an insert-only Postgres ledger, sends cards to the escalation inbox and to the controller in Microsoft Teams, and exports the close package. Retail Link and EDI 820 are planned.</desc>
       <defs>
         <filter id="tile-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#5b241d" floodOpacity=".12"/></filter>
         <radialGradient id="parchment" cx="50%" cy="45%" r="75%"><stop offset="0" stopColor="#fbf6ef"/><stop offset="1" stopColor="#f1e6d8"/></radialGradient>
       </defs>
-      <rect x="8" y="8" width="944" height="454" rx="22" fill="url(#parchment)" stroke="#eaded0"/>
+      <rect x="8" y="8" width="944" height="524" rx="22" fill="url(#parchment)" stroke="#eaded0"/>
       {NODES.map(n => <g key={`p-${n.id}`}>
         <path d={path(n)} className={`map-line ${n.planned ? 'planned' : live(n.id) ? 'live' : 'off'}`}/>
         <text className="map-flow" x={n.side === 'up' ? n.x + 10 : n.side === 'in' ? n.x + 56 : n.x - 56}

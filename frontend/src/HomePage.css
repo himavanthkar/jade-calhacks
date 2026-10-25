@@ -1,0 +1,28 @@
+.home{padding:56px 48px 80px;min-height:calc(100vh - 61px);background:#fdfbf8;color:#292623;max-width:1180px}
+.home-eyebrow{font-size:12px;color:#85857e;margin:0 0 14px}
+.home-hero h1{font:600 40px/1.15 Arial,Helvetica,sans-serif;letter-spacing:-1px;margin:0;max-width:900px}
+.home-hero h1 span{color:#85857e}
+.home-why{margin-top:18px;font-size:13px}
+.home-why summary{cursor:pointer;color:#5b241d;font-weight:600}
+.home-why ul{margin:10px 0 0;padding-left:18px;line-height:1.7;color:#45443f;max-width:760px}
+.home-why a{color:#5b241d}
+.home-month{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:40px 0 36px;border:1px solid #ece5da;border-radius:16px;background:#fff;overflow:hidden}
+.home-month div{padding:22px 26px;border-right:1px solid #ece5da}.home-month div:last-child{border-right:0}
+.home-month strong{display:block;font:600 36px Arial,Helvetica,sans-serif;letter-spacing:-.5px}
+.home-month span{font-size:13px;color:#85857e}
+.home-month .attention strong{color:#E86F31}
+.home-queue header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.home-queue h2{font:600 18px Arial,Helvetica,sans-serif;margin:0}
+.home-step{font-size:12px;border:1px solid #e3d8c8;background:#fff;color:#5b241d;border-radius:999px;padding:7px 14px;cursor:pointer}
+.home-step:disabled{opacity:.5;cursor:not-allowed}
+.home-queue ul{list-style:none;margin:0;padding:0;border:1px solid #ece5da;border-radius:16px;background:#fff;overflow:hidden}
+.home-queue li+li{border-top:1px solid #f1ebe2}
+.home-queue li button{width:100%;display:grid;grid-template-columns:150px 1fr 110px 210px 80px;gap:16px;align-items:center;text-align:left;padding:18px 22px;border:0;background:#fff;cursor:pointer;color:#292623;font:inherit}
+.home-queue li button:hover{background:#fbf7f1}
+.home-who{font-weight:600;font-size:14px}.home-who small{display:block;font-weight:400;font-size:11px;color:#85857e;margin-top:2px}
+.home-what{font-size:13px;line-height:1.45;color:#45443f}
+.home-amt{font:600 15px Arial,Helvetica,sans-serif;text-align:right}
+.home-rec{font-size:12px;color:#5b241d;background:#fbe9df;border-radius:999px;padding:5px 10px;justify-self:start}
+.home-go{font-size:12px;color:#E86F31;font-weight:600;text-align:right}
+.home-empty{font-size:14px;color:#85857e;padding:26px;border:1px dashed #e3d8c8;border-radius:16px;background:#fff}
+@media (max-width:1000px){.home{padding:32px 16px}.home-hero h1{font-size:30px}.home-queue li button{grid-template-columns:1fr;gap:6px}.home-amt,.home-go{text-align:left}.home-month{grid-template-columns:1fr}.home-month div{border-right:0;border-bottom:1px solid #ece5da}}

@@ -59,3 +59,26 @@ export function decisionPath(card: Escalation): Path {
     : { done: true, text: `${card.answered_by ?? 'A person'} chose “${chosen?.label ?? card.answer}”${card.became_precedent_id ? `, which became ${card.became_precedent_id}: the next case like it settles silently` : ''}.` }
   return { nodes, leaf, outcome }
 }
+
+/** One plain line for a person: what is being asked, from the card's own evidence fields. Falls back to the
+ *  first sentence of the engine's summary. */
+const monthName = (p: unknown) => typeof p === 'string' && /^\d{4}-\d{2}$/.test(p)
+  ? new Date(`${p}-01T12:00:00`).toLocaleDateString('en-US', { month: 'long' }) : String(p ?? '')
+const perCase = (v: unknown) => `$${Number(v).toFixed(2)}`
+export function headline(card: Escalation): string {
+  const ev = card.evidence as Record<string, unknown>
+  const program = ev.program_id ? ` (${ev.program_id})` : ''
+  if (ev.amendment_id) {
+    const n = Array.isArray(ev.periods) ? ev.periods.length : 0
+    return `Restate ${n || ''} closed month${n === 1 ? '' : 's'}: amendment ${ev.amendment_id} reached us late${program}`.replace('  ', ' ')
+  }
+  if (card.control_id === 'CTL-RATE-CONFLICT' && ev.claimed_rate && ev.program_rate)
+    return `Claims ${monthName(ev.claimed_period ?? ev.origin)} at ${perCase(ev.claimed_rate)} a case; the agreement says ${perCase(ev.program_rate)}${program}`
+  if (card.control_id === 'CTL-STALE-ACCRUAL') return `${monthName(ev.origin)} accrual still open with no claim against it${program}`
+  if (card.control_id === 'CTL-OUTSIDE-WINDOW') return `Claim falls outside the program's dates${program}`
+  if (card.control_id === 'CTL-SCAN-NO-BACKUP') return `Scan-back claim with no scan data${program}`
+  if (card.control_id === 'CTL-PERIOD-STRADDLE') return `Claim spans a quarter end${program}`
+  if (card.control_id === 'CTL-DED-GT-ACCRUAL') return `Claim is more than was accrued${program}`
+  const s = String(ev.summary ?? card.question)
+  return (s.match(/^.*?[.?!](\s|$)/)?.[0] ?? s).trim()
+}

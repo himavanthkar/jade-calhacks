@@ -49,10 +49,5 @@ export default function DecisionTree({ card }: { card: Escalation }) {
         <text className="dt-nlabel" x={n.at.x} y={n.at.y - 22} textAnchor="middle">{n.label}</text>
       </g>)}
     </svg>
-    <div className={`dt-result ${p.outcome.done ? 'dt-done' : 'dt-open'}`}>
-      <p><b>{p.leaf.title}.</b> {p.leaf.detail}</p>
-      <p className="dt-outcome"><span>{p.outcome.done ? '● Decided' : '○ Open'}</span> {p.outcome.text}</p>
-    </div>
-    <p className="dt-note">Squares are the checks, in the order the engine runs them on every finding; circles are where a case ends. Read from the card's record: the engine decided, this explains.</p>
   </section>
 }

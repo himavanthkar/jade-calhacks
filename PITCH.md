@@ -89,17 +89,24 @@ A video agent produces the 2–3 minute demo video from this repo. The agent def
 | Live app for screen capture | `make api` and the frontend (`docs/getting-started.md`), or the preview state in `docs/integrations.md` |
 | Story photography | `docs/images/gm-*.jpg` (credits in `docs/images/CREDITS.md`) |
 
-**Shot list.**
+**Shot list.** Follow the usage flow in `specs/jade-demo-and-close-exports.html` ("Usage flow: Walmart's October close"),
+beat for beat: its voice-over lines, the buttons to click (shown as orange callouts in its screenshots), and the
+journal entry behind each step. The arc is the close itself:
 
-| Time | Shot | On screen | Voice |
+| Time | Close step | Screen and click | Land this line |
 |---|---|---|---|
-| 0:00–0:20 | Cereal table photo, slow push | Title: JADE | The cereal we grew up on was sold on a promise to the retailer. |
-| 0:20–0:45 | Overview, the problem strip | The six numbers, one at a time | $493M of those promises, a critical estimate in General Mills' 10-K. |
-| 0:45–1:25 | Restatement Comparison | Then / now | An amendment nobody entered; JADE finds $1.39M on its own. |
-| 1:25–2:05 | Integrations map → the email card → its decision tree | The tree's lit path | It reads the email; it doesn't obey it. |
-| 2:05–2:30 | Backtest charts | 22.1%, 9.4% vs 12.3% | Tested on sixteen years of real filings. |
-| 2:30–2:50 | Flux & Close Review, export | The narrative's journal ids | The close explains itself and leaves signed. |
-| 2:50–3:00 | Logo on parchment | Deterministic JADE Engine | Deterministic where money moves. |
+| 0:00 | The problem | Home | $493M of trade promotion accruals, a critical accounting estimate |
+| 0:25 | Contract set-up | Setup → Read the agreements | Each term cites its clause |
+| 0:45 | Deduction intake | Mailbox → Integrations → the deduction notice | Parsed by code, every field keeps its line |
+| 1:15 | Exceptions | Home → Review | Three items need a person, each with a recommendation |
+| 1:30 | Segregation of duties | Answer as the sales lead → Approve | Refused, in code |
+| 1:50 | Change in estimate | Approve the restatement | $190,415.99 catch-up; then and now both on record |
+| 2:15 | Exception with evidence | Customer's claimed rate → reason → Decide | The reason becomes the precedent |
+| 2:40 | Reconciliation | Kroger → Release the accrual | No claim in five months |
+| 2:55 | Sign-off | Close → Sign off | A failing check blocks the close |
+| 3:15 | Close binder | Close report | Every number traceable to its journal line |
+
+Record the screen from the demo state (Phase 1 of the plan), never from a database someone has been clicking in.
 
 **Rules for the video agent.**
 

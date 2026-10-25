@@ -16,3 +16,6 @@ docs/pitch.md
 docs/pitch-screenshots/
 **/*hackmit*
 **/*winner-research*
+
+# close reports printed by scripts/close_report.py
+reports/

@@ -78,6 +78,9 @@
   .exports span { font-size: .85rem; color: var(--muted); }
   .callout { background: var(--good-soft); border-left: 3px solid var(--good); padding: 10px 14px; border-radius: 6px; margin: 16px 0; }
   .qa-answer { color: var(--muted); }
+  .click { display: inline-block; font: 600 .78rem var(--sans); color: #fff; background: var(--accent); border-radius: 999px; padding: 1px 9px; margin: 0 1px; }
+  mark { background: #fde3d3; color: var(--ink); padding: 0 3px; border-radius: 3px; }
+  .beat img + img { margin-top: 8px; }
   @media (max-width: 600px) { .beat { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -92,10 +95,10 @@
       <summary>Metadata</summary>
       <dl>
         <dt>created</dt>      <dd>2026-10-25T05:16:10Z</dd>
-        <dt>modified</dt>     <dd>2026-10-25T05:16:10Z</dd>
-        <dt>commits</dt>      <dd>7b8e2c3</dd>
-        <dt>agent name</dt>        <dd>Claude Opus 5.5 (claude-opus-5-5)</dd>
-        <dt>session id</dt>      <dd>session_01MHcQGypB3cWA8m1upqfQi7</dd>
+        <dt>modified</dt>     <dd>2026-10-25T05:16:10Z, 2026-10-25T06:05:00Z</dd>
+        <dt>commits</dt>      <dd>7b8e2c3, 41b6a2e</dd>
+        <dt>agent name</dt>        <dd>Claude Opus 5.5 (claude-opus-5-5), Claude Opus 5.5 (claude-opus-5-5)</dd>
+        <dt>session id</dt>      <dd>session_01MHcQGypB3cWA8m1upqfQi7, session_01MHcQGypB3cWA8m1upqfQi7</dd>
         <dt>back refs</dt>    <dd>specs/part-b-cl-merge-readiness.html, docs/presenting.md, docs/integrations.md, docs/benchmarks.md, spec.md</dd>
         <dt>forward refs</dt> <dd>none yet</dd>
       </dl>
@@ -152,48 +155,95 @@
   </section>
 
   <section id="transcript">
-    <h2>Demo transcript</h2>
-    <p>About three and a half minutes, on the live API (<code>scripts/demo_preview.sh</code>, Phase 1) or mock mode. Bold text in brackets is what to click. Numbers are the seed-1337 run and the cited filings; say them as written.</p>
+    <h2>Usage flow: Walmart's October close</h2>
+    <p><strong>Title:</strong> <em>JADE: the trade promotion close, by agreement.</em></p>
+    <table>
+      <thead><tr><th>Who</th><th>Role at a CPG manufacturer ($1B+ in retail sales)</th><th>What they do in JADE</th></tr></thead>
+      <tbody>
+        <tr><td><strong>User</strong></td><td>Trade promotion accountant; deductions analyst (revenue accounting, US retail)</td><td>Work the "Waiting on you" queue; read the evidence; decide with a reason</td></tr>
+        <tr><td><strong>Approver</strong></td><td>Controller; close reviewer</td><td>Approve catch-ups and exceptions; sign off each customer's period</td></tr>
+        <tr><td><strong>Buyer</strong></td><td>Corporate controller / CAO</td><td>Owns the critical estimate ($493M at General Mills) and the close calendar</td></tr>
+        <tr><td><strong>Pitch audience</strong></td><td>Hyphenate judges: finance-automation builders</td><td>Want deterministic posting, human checkpoints, and proof on real data</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The close, and where each step happens</h3>
+    <table>
+      <thead><tr><th>Close step (trade promotions)</th><th>JADE screen</th><th>Who</th></tr></thead>
+      <tbody>
+        <tr><td>0. Contract set-up: terms read from agreements; controls mined from last year's decisions</td><td>Setup</td><td>Once, at onboarding</td></tr>
+        <tr><td>1. Revenue and accrual at shipment: variable consideration accrued as contra-revenue (ASC 606)</td><td>Close → Journal Entries</td><td>JADE, automatically</td></tr>
+        <tr><td>2. Deduction intake: short-pays and claim backup parsed from email or remittance</td><td>Gmail → Integrations</td><td>JADE, automatically</td></tr>
+        <tr><td>3. Matching and clearing: each deduction matched to its program; supported claims cleared, unsupported ones disputed</td><td>Home (count settled)</td><td>JADE, automatically</td></tr>
+        <tr><td>4. Exceptions: what the agreement can't settle goes to the person who owns it</td><td>Home → Decisions</td><td>Analyst, controller</td></tr>
+        <tr><td>5. Change in estimate: a late amendment trues up months already closed</td><td>Decisions; Close → Restatement Comparison</td><td>Controller</td></tr>
+        <tr><td>6. Reconciliation and review: verifiability checks, flux analysis, analytical review against the 10-K</td><td>Close → Period Status, Flux</td><td>Close reviewer</td></tr>
+        <tr><td>7. Sign-off and the close binder</td><td>Close → Sign off; Close report (PDF)</td><td>Close reviewer</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>How to read the steps:</strong> <span class="click">Click</span> is a button to press on stage; <mark>highlighted</mark> words are what to land in the voice-over; <em>Ledger</em> is the entry behind the screen, for the judge who asks. Run it from the demo state (Phase 1: January to September played, the three emails landed, October run). Times are cumulative.</p>
+
     <div class="transcript">
       <div class="beat"><time>0:00</time><div>
-        <p class="do">[Overview, month 10. Don't click yet.]</p>
-        <p class="say">Every box of Cheerios on a Walmart shelf was sold on a promise: a scan-back for every unit, paid months later as a deduction from Walmart's payment. General Mills carries 493 million dollars of those promises on its balance sheet and calls the estimate critical in its 10-K. Two people a month decide what was owed. JADE does that job, and asks them only when the contract can't answer.</p>
-        <img src="jade-demo-and-close-exports/ui-overview.jpg" alt="JADE overview at month 10: a promotion restatement found, precision and recall 100%, the month stepper">
+        <p class="do"><b>The problem</b> · Home, no click.</p>
+        <p class="say">General Mills carries <mark>$493 million of trade promotion accruals</mark>, a critical accounting estimate in its 10-K. Retailers settle them as <mark>deductions</mark>, short-paying invoices months later, often at a rate nobody booked. When the estimate trues up, the quarter moves: <mark>13 points of Q4 operating profit growth</mark> in fiscal 2025. JADE closes these books by the agreement; you only see the calls the agreement can't make.</p>
+        <img src="jade-demo-and-close-exports/step4-home.jpg" alt="Home: three waiting on you, three settled automatically, the queue with JADE's recommendation on each">
       </div></div>
-      <div class="beat"><time>0:30</time><div>
-        <p class="do">[Month &amp; Period → Restatement Comparison.]</p>
-        <p class="say">In February Walmart signed an amendment raising TP-0214 from $3.80 to $4.20 a case. Nobody entered it; six months closed short. In August the document reached the books, and JADE found the gap on its own: $1,391,636.52 across February to July. Here is September after a second amendment: then, the accrual as it was booked; now, the catch-up, with nothing overwritten. Correct then and correct now are the same query at two times.</p>
-        <img src="jade-demo-and-close-exports/ui-restatement.jpg" alt="Restatement comparison: then, September's original accrual; now, the $190,415.99 catch-up from AM-03">
+      <div class="beat"><time>0:25</time><div>
+        <p class="do"><b>0 · Contract set-up</b> · <span class="click">Setup</span> → <span class="click">Read the agreements</span></p>
+        <p class="say">Before go-live, JADE read every trade agreement into terms. Each term <mark>cites the clause</mark> it came from. TP-0214, Walmart's Cheerios scan-back, now reads $4.50 a case, from <mark>amendment AM-03</mark>. A contract that doesn't state a required term is refused, not guessed.</p>
+        <img src="jade-demo-and-close-exports/step1-agreements.jpg" alt="Setup, Read the agreements: TP-0214 at $4.50 a case from AM-03, the clause cited">
       </div></div>
-      <div class="beat"><time>1:10</time><div>
-        <p class="do">[Integrations. Point at the Gmail tile, then the inbox list.]</p>
-        <p class="say">Most of what decides a deduction never reaches the ledger. It arrives by email. JADE reads the deductions inbox the way it reads contracts: by code, every field quoted from its sentence. A deduction notice becomes a deduction. A signed amendment becomes terms. Anything else is evidence, never an instruction.</p>
-        <img src="jade-demo-and-close-exports/ui-integrations.jpg" alt="Integrations map: Gmail and SEC EDGAR into the JADE engine; ledger, inbox and Excel package out; Retail Link planned">
+      <div class="beat"><time>0:45</time><div>
+        <p class="do"><b>2 · Deduction intake</b> · show the mailbox (live Gmail, or the demo mailbox), then <span class="click">Integrations</span> → the <span class="click">Deduction notice</span> row</p>
+        <p class="say">Walmart's supplier claims team sends a <mark>deduction notice</mark>: $60,003 taken against TP-0214, September, <mark>$4.50 a case on 13,334 units</mark>. It lands in the deductions inbox. JADE parses it by code. Every field keeps the line it was read from, and the notice becomes a <mark>deduction and its claim backup</mark> in the subledger. Nobody keyed it.</p>
+        <img src="jade-demo-and-close-exports/step2-gmail-inbox.jpg" alt="Demo mailbox: Walmart's deduction notice, the sales lead's note and the signed amendment">
+        <img src="jade-demo-and-close-exports/step2-gmail-message.jpg" alt="The deduction notice: $60,003.00, TP-0214, $4.50 a case, 13,334 units">
+        <img src="jade-demo-and-close-exports/step3-parsed.jpg" alt="What JADE read from the notice, line by line, and the two cards it produced">
+        <p class="do"><em>Ledger:</em> Dr 1250 Deductions pending resolution / Cr 1200 Accounts receivable, $60,003.00 (JE-1361): the short-pay, held until matched.</p>
       </div></div>
-      <div class="beat"><time>1:35</time><div>
-        <p class="do">[Escalation Inbox → Controller → ESC-0018.]</p>
-        <p class="say">The Walmart sales lead wrote: four-fifty a case, paperwork to follow, please clear their claim at that rate. Then Walmart claimed September at four-fifty. Without that email, last year's precedent would dispute the difference and nobody senior would see it. With it, the controller gets the card, the email quoted, and JADE recommends holding. An email is not an amendment. <strong>[Answer as: Walmart sales lead → “Customer's claimed rate” → Submit. The refusal appears.]</strong> And the person who negotiated the deal can't approve its claim: that's a refusal in code, not a prompt.</p>
-        <img src="jade-demo-and-close-exports/ui-email-card.jpg" alt="Controller's card: the sales lead's email flagged 'Nothing signed', beside Walmart's deduction notice">
+      <div class="beat"><time>1:15</time><div>
+        <p class="do"><b>3–4 · Matching and exceptions</b> · <span class="click">Home</span> → <span class="click">Review</span> on the restatement row</p>
+        <p class="say">This month JADE matched and cleared the routine deductions on its own. <mark>Three items need a person</mark>, each with JADE's recommendation. The biggest is Walmart's: the signed amendment raised TP-0214 to $4.50 from September, after September was already closed.</p>
+      </div></div>
+      <div class="beat"><time>1:30</time><div>
+        <p class="do"><b>5 · Segregation of duties</b> · <span class="click">Answer as someone else</span> → <span class="click">Walmart sales lead</span> → <span class="click">Approve the restatement</span></p>
+        <p class="say">The sales lead who negotiated the deal tries to approve the catch-up himself. <mark>Refused</mark>. It's a capability check in code, not a policy reminder: the controller owns this card, and the person who negotiated the deal can never approve its money.</p>
+        <img src="jade-demo-and-close-exports/step5-sod.jpg" alt="Answering as the Walmart sales lead is refused">
+      </div></div>
+      <div class="beat"><time>1:50</time><div>
+        <p class="do"><b>5 · Change in estimate</b> · back to the controller · <span class="click">Approve the restatement</span></p>
+        <p class="say">The controller approves a <mark>$190,415.99 catch-up</mark>: September's accrual was booked at $4.20 and the signed rate is $4.50. The tree shows why it reached her: a closed period changes, so it's the controller's call. The original September entry stays as booked; the true-up posts beside it, so <mark>what we knew then and what we know now</mark> are both on the record. The approval becomes precedent PR-0018.</p>
+        <img src="jade-demo-and-close-exports/step6-restatement.jpg" alt="The restatement card: Approve the restatement, the $190,415.99 catch-up">
+        <img src="jade-demo-and-close-exports/step6-approved.jpg" alt="Approved, became precedent PR-0018">
+        <p class="do"><em>Ledger:</em> Dr 4100 Trade promotion expense (contra-revenue) / Cr 2300 Accrued trade promotion liability, $190,415.99, posted to September, decided at the October close (JE-1396).</p>
       </div></div>
       <div class="beat"><time>2:15</time><div>
-        <p class="do">[Backtest. Hover FY22 on the first chart.]</p>
-        <p class="say">Deduction data is never public, so we tested what is: sixteen years of General Mills' trade liability, walked forward so no close sees its own 10-K. Audited books swung 22 percent in a year. The usual plus-or-minus-50 review can't fail; we calibrate it on the real history. And the best top-down estimate still misses by 9 percent, which is why JADE accrues program by program instead.</p>
-        <img src="jade-demo-and-close-exports/ui-backtest.jpg" alt="Backtest: the liability as a share of net sales, FY2011–FY2026, and the estimate at each close against the 10-K">
+        <p class="do"><b>4 · Exception with evidence</b> · open the <span class="click">$4.50 claim</span> card · <span class="click">Customer's claimed rate</span> → type the reason → <span class="click">Decide with my reason</span></p>
+        <p class="say">Walmart's claim at $4.50 arrived <mark>before the paperwork</mark>, and the sales lead's email said "paperwork to follow". An email is not an amendment, so JADE recommended a hold. Now the signed amendment is on file, so the controller <mark>overrides with a reason</mark>: AM-03 supports $4.50 from September; clear at the claimed rate. That reason becomes the precedent for the next claim like it.</p>
+        <img src="jade-demo-and-close-exports/step7-override.jpg" alt="The $4.50 claim: choose the customer's claimed rate, give the reason, decide">
+        <p class="do"><em>Ledger:</em> Dr 2300 Accrued trade promotion liability / Cr 1250 Deductions pending resolution, $60,003.00 (JE-1397): the claim settled against September's accrual, so <mark>AR and the liability clear together</mark>.</p>
       </div></div>
-      <div class="beat"><time>2:45</time><div>
-        <p class="do">[Month &amp; Period → Flux &amp; Close Review.]</p>
-        <p class="say">The close explains itself. Accrued trade promotion moved 1.2 percent in October, and every dollar of that sentence is a sum of named journal lines you can click. So far this year, thirty-four of thirty-five repeat situations settled by an answer someone gave once.</p>
-        <img src="jade-demo-and-close-exports/ui-flux.jpg" alt="Flux and close review: the 2300 liability's movement explained by its journal entries">
+      <div class="beat"><time>2:40</time><div>
+        <p class="do"><b>6 · Reconciliation</b> · <span class="click">Review</span> the Kroger row · <span class="click">Release the accrual</span></p>
+        <p class="say">Kroger's May display accrual has had <mark>no claim for five months</mark>, past its claim lag. Last year's analysts released accruals like it four times; JADE recommends the same, and the close reviewer agrees.</p>
+        <img src="jade-demo-and-close-exports/step8-kroger.jpg" alt="Kroger stale accrual: Release the accrual">
+        <p class="do"><em>Ledger:</em> Dr 2300 Accrued trade promotion liability / Cr 4100 Trade promotion expense, $165,000.00 (JE-1398): the release reverses contra-revenue in November, the open period.</p>
       </div></div>
-      <div class="beat"><time>3:10</time><div>
-        <p class="do">[Export ▾ → Flux report (PDF), then Excel, then QuickBooks. Open the PDF.]</p>
-        <p class="say">And it leaves the way a controller's month leaves: a flux report for the binder, a workbook whose check cells read zero, and a journal import for QuickBooks. JADE keeps the subledger; your general ledger gets the posting, signed by a person.</p>
+      <div class="beat"><time>2:55</time><div>
+        <p class="do"><b>7 · Sign-off</b> · <span class="click">Close</span> → <span class="click">Sign off Walmart</span>, <span class="click">Sign off Costco</span>, then <span class="click">Sign off Kroger</span></p>
+        <p class="say">Sign-off <mark>re-runs five verifiability checks</mark>: journals balance, reversals mirror, no stale accruals, claims inside their windows, nothing cleared beyond what was accrued. Walmart and Costco sign. Kroger is <mark>blocked</mark>: the release posted to November, so October still carries a stale accrual. A check that fails blocks the close. It doesn't warn.</p>
+        <img src="jade-demo-and-close-exports/step9-signoff.jpg" alt="Period status: Sign off Walmart, the five checks">
+        <img src="jade-demo-and-close-exports/step9-blocked.jpg" alt="Kroger blocked by the no-stale-accruals check">
       </div></div>
-      <div class="beat"><time>3:30</time><div>
-        <p class="do">[Stop.]</p>
-        <p class="say">Deterministic where money moves, a person where judgment is needed, and every number traceable to the line that made it. That's JADE.</p>
+      <div class="beat"><time>3:15</time><div>
+        <p class="do"><b>7 · Close binder</b> · <span class="click">Close report</span> (opens the report; print to PDF)</p>
+        <p class="say">The close leaves as a report: <mark>flux analysis with the journal lines behind every number</mark>, the analytical review against General Mills' 10-K (3.39% of net sales against 2.68% reported, within range), each decision with who made it and its precedent, the reconciliation per program, and the sign-offs. Deterministic where money moves, a person where judgment is needed, and every number traceable to the line that made it.</p>
+        <img src="jade-demo-and-close-exports/step10-report.png" alt="The October close report: flux, analytical review, decisions, reconciliation, sign-off">
       </div></div>
     </div>
+    <p><strong>Reset between runs:</strong> rebuild the demo state (Phase 1). The PDF used here is <a href="jade-demo-and-close-exports/jade-close-2026-10.pdf">jade-close-2026-10.pdf</a>, from <code>scripts/close_report.py 2026-10</code>. The mailbox images come from <code>scripts/gmail_preview.py</code>, rendered from the scenario's own .eml files and labelled as a demo mailbox; with Gmail connected (<code>gws auth login -s gmail</code>), show the real inbox instead.</p>
   </section>
 
   <!-- ===== RELEVANT FILES ===== -->
@@ -447,7 +497,10 @@
   <!-- ===== AMENDMENTS ===== -->
   <section id="amendments">
     <h2>Amendments</h2>
-    <p class="qa-answer">None yet.</p>
+    <details>
+      <summary>2026-10-25 — The transcript becomes a usage flow along the close, with clicks, screenshots and a real report</summary>
+      <p>Replaced the demo transcript with a usage flow for Walmart's October close: target users and buyer, the close steps mapped to screens, and each step with the buttons to click, an annotated screenshot of the real UI (captured clicking through the flow), the voice-over with the terms to land highlighted, and the journal entry behind it. Added what the flow needed and was missing: a sign-off button per customer on Close, the close report (<code>tpa/report.py</code>, Close → Close report, <code>scripts/close_report.py</code> for the PDF), and a Gmail-style render of the scenario's own mail (<code>scripts/gmail_preview.py</code>). Found while recording: the sales lead's attempt is refused by the role check ("cannot answer a card addressed to the controller"), and Kroger's sign-off is blocked by the stale-accrual check because the release posts to the open period; the script says both as they happen.</p>
+    </details>
   </section>
 
 </main>

@@ -1,0 +1,12 @@
+.git
+.env
+.venv
+data
+reports
+video
+frontend/node_modules
+frontend/dist
+**/__pycache__
+**/.DS_Store
+*.mp4
+*.mov

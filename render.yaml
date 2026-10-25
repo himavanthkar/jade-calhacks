@@ -1,0 +1,32 @@
+# Render Blueprint: JADE's web app and its Postgres, both on the free plan.
+# New → Blueprint → this repository. The app seeds the empty database on first start.
+
+databases:
+  - name: jade-db
+    plan: free
+    region: oregon
+    databaseName: tpa
+    user: tpa
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: jade
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/clock
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jade-db
+          property: connectionString
+      - key: TPA_HUMANS
+        value: inbox
+      - key: TPA_USE_MODEL
+        value: "0"
+      - key: TPA_ALLOW_RESET
+        value: "1"
+      - key: JADE_THROUGH
+        value: month-7

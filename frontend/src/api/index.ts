@@ -7,5 +7,6 @@ const scenario = (import.meta.env.VITE_MOCK_SCENARIO ?? 'inbox') as MockScenario
 if (scenario !== 'inbox' && scenario !== 'moment') throw new Error('VITE_MOCK_SCENARIO must be inbox or moment.')
 export const apiMode = mode
 export const api = mode === 'mock' ? createMockApi(scenario) : createHttpApi(import.meta.env.VITE_API_BASE_URL ?? '/api')
-export { ApiError, createHttpApi } from './client'
+export { ApiError, createHttpApi, errorKind } from './client'
+export { ACTORS } from './actors'
 export type * from './types'

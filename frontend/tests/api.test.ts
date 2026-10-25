@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { ApiError, createHttpApi } from '../src/api/client'
+import { ApiError, createHttpApi, errorKind } from '../src/api/client'
 import { createMockApi } from '../src/api/mock'
 
 describe('HTTP contract', () => {
@@ -22,6 +22,24 @@ describe('HTTP contract', () => {
       expect((error as ApiError).message).toContain('approval routed to controller')
     }
     expect(calls).toBe(1)
+  })
+  test('the SoD and gate refusals keep their kind', async () => {
+    const refuse = (status: number, kind: string) => (async () => new Response(JSON.stringify({ detail: 'no', kind }), { status })) as typeof fetch
+    const sod = await createHttpApi('/api', refuse(403, 'segregation_of_duties')).answerEscalation('ES-1', 'clear', { answeredBy: 'sales.walmart' }).catch(e => e)
+    expect(errorKind(sod)).toBe('segregation_of_duties')
+    const gate = await createHttpApi('/api', refuse(409, 'gate_failure')).stepPeriod('2026-03').catch(e => e)
+    expect(errorKind(gate)).toBe('gate_failure')
+    expect(errorKind(new Error('network'))).toBeUndefined()
+  })
+  test('injects a scenario once, with step and who', async () => {
+    const calls: [string, RequestInit | undefined][] = []
+    const fetcher = (async (input: string | URL | Request, init?: RequestInit) => { calls.push([String(input), init]); return Response.json({ id: 'SC-0001', created_ids: ['DD-9001'] }) }) as typeof fetch
+    const api = createHttpApi('/api', fetcher)
+    expect((await api.injectScenario('deduction', { customer_id: 'WMT', amount: '48000.00' }, { step: true, injectedBy: 'judge' })).id).toBe('SC-0001')
+    await api.getScenarioExamples()
+    expect(calls.map(c => c[0])).toEqual(['/api/scenario', '/api/scenario/examples'])
+    expect(calls[0][1]?.method).toBe('POST')
+    expect(JSON.parse(calls[0][1]?.body as string)).toEqual({ kind: 'deduction', payload: { customer_id: 'WMT', amount: '48000.00' }, step: true, injected_by: 'judge' })
   })
   test('rejects invalid month before requesting', () => {
     expect(() => createHttpApi().getPeriod('2026-13')).toThrow('YYYY-MM')

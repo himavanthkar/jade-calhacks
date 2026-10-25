@@ -115,6 +115,15 @@ export interface LandedMessage { id: string; kind: MailKind; lands_on: string; c
 export interface SyncResult { landed: LandedMessage[]; step?: StepSummary }
 /** A message quoted on a card (finding evidence `correspondence`). */
 export interface Correspondence { id: string; kind: MailKind; from: string; sender_actor: string | null; subject: string; received: string; asserted_rate: DecimalValue | null; signed: boolean | null; program_id: string | null; quotes: string[] }
+/** The judge's own scenario (tpa/scenario.py): rows land in the month the clock is on; the engine meets them on the next step. */
+export type ScenarioKind = 'deduction' | 'duplicate' | 'backup' | 'return' | 'amendment' | 'approval_attempt' | 'handoff'
+export interface ScenarioExample { title: string; kind: ScenarioKind; payload: Evidence }
+export interface Injection { id: string; kind: ScenarioKind; payload: Evidence; created_ids: string[]; period: string; sim_date: string; injected_by: string | null }
+/** `step` and `findings` only when the month was run with the injection: findings are the ones whose evidence names a created id. */
+export interface InjectResult { id: string; kind: ScenarioKind; period: string; lands_on: string; created_ids: string[]; step?: StepSummary; findings?: Finding[] }
+export interface InjectOptions extends RequestOptions { step?: boolean; injectedBy?: string }
+/** The people (tpa/seed/fiction.py ACTORS); the API checks who may answer what. */
+export interface Actor { id: string; name: string; role: Role; customer_id: CustomerId | null }
 
 export interface RequestOptions { signal?: AbortSignal }
 /** `asOf`: 'month-N', 'YYYY-MM' or an ISO date-time — the books as they stood then. */
@@ -142,4 +151,8 @@ export interface TradePromotionApi {
   getInbox(options?: RequestOptions): Promise<InboundMessage[]>
   /** Read new mail into the month the clock is on; `step` also runs the month. */
   syncInbox(step?: boolean, options?: RequestOptions): Promise<SyncResult>
+  getScenarioExamples(options?: RequestOptions): Promise<ScenarioExample[]>
+  getInjections(options?: RequestOptions): Promise<Injection[]>
+  /** With `step`, also runs the month so the scenario plays out at once. */
+  injectScenario(kind: ScenarioKind, payload: Evidence, options?: InjectOptions): Promise<InjectResult>
 }

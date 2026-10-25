@@ -6,6 +6,7 @@ data/
 .local/
 .env
 .DS_Store
+.demo-api.log
 
 # local research notes, not part of the docs
 .research/

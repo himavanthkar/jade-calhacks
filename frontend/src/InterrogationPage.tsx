@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { AskResponse, TradePromotionApi } from './api'
 import { apiMode } from './api'
 import './InterrogationPage.css'
-const suggestions = ['Why did you post JE-1058?', 'What did it know in March?']
+const suggestions = ['Why did you post JE-1058?', 'What did it know in March?', 'What problem does JADE solve?']
 const icon = (id: number) => <img src={`/figma/interrogation/icon${id}.svg`} alt="" />
 export default function InterrogationPage({client}:{client:TradePromotionApi}) {
   const [question,setQuestion] = useState(suggestions[0])

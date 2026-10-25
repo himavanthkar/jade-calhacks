@@ -45,3 +45,21 @@ ANALYTICAL_REVIEW_TOLERANCE = Decimal("0.5")
 # Company policy, not GAAP. A card unanswered this many days by the close goes up to the
 # controller, who owns the close: approvers are busy, and the close shouldn't wait on silence.
 CARD_FOLLOW_UP_DAYS = 10
+
+
+def describe() -> list[dict]:
+    """The settings a controller signs off at onboarding, one line each. The comments above are the full reasons."""
+    return [
+        {"name": "Backup variance floor", "value": VARIANCE_NOISE_FLOOR_PCT, "unit": "pct",
+         "why": "Below this, a difference is the retailer rounding a blended rate."},
+        {"name": "Redemption drift", "value": DRIFT_TOLERANCE_PCT, "unit": "pct",
+         "why": "Sell-through this far above the accrual rate teaches a new control."},
+        {"name": "Flux materiality", "value": MATERIALITY_RATE, "unit": "share",
+         "why": "An account moving more than this share of last year's monthly accrual gets commentary."},
+        {"name": "Low confidence", "value": LOW_CONFIDENCE, "unit": "share",
+         "why": "Below this, the agreement can't settle it: the controller decides."},
+        {"name": "Analytical review range", "value": ANALYTICAL_REVIEW_TOLERANCE, "unit": "share",
+         "why": "The liability ratio this far from the latest 10-K needs the reviewer's explanation."},
+        {"name": "Card follow-up", "value": CARD_FOLLOW_UP_DAYS, "unit": "days",
+         "why": "A card unanswered this long goes up to the controller."},
+    ]

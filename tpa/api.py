@@ -14,6 +14,8 @@
     GET  /api/metrics?as_of={period}   → { precision, recall, escalation_rate, autonomy }
     GET  /api/metrics/series           → the same, for every live month run so far
     GET  /api/backtest                 → the estimate and the close's controls on General Mills' real 10-Ks
+    GET  /api/problem                  → the problem in cited numbers (what the Overview and the pitch say)
+    GET  /api/onboarding               → what JADE learned before going live: agreements read, history replayed, policy
     GET  /api/scenario/examples        → ready-made scenarios against the books as they stand
     POST /api/scenario                 → { kind, payload, step? } add source rows to the month the clock is on
     GET  /api/scenario                 → everything injected so far
@@ -42,7 +44,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from tpa import autopilot, backtest, explain, export, judgment, mail, players, scenario
+from tpa import autopilot, backtest, explain, export, judgment, mail, players, policy, problem, scenario
 from tpa.package import package as signoff_package
 from tpa.asof import sim_clock
 from tpa.constants import live_month, period_end, period_start
@@ -331,6 +333,26 @@ def get_backtest():
     return out({**backtest.run(), "history": backtest.history(),
                 "trade_timing": [vars(t) for t in TRADE_TIMING],
                 "policy_tolerance": ANALYTICAL_REVIEW_TOLERANCE})
+
+
+@app.get("/api/problem")
+def get_problem():
+    return out({"facts": problem.FACTS, "story": problem.STORY})
+
+
+@app.get("/api/onboarding")
+def get_onboarding(conn=Depends(db)):
+    """Before the first live month: the agreements read into terms (each citing its clause), last year's
+    decisions replayed, and the company policy the controller signs. The controls mined from those
+    decisions are GET /api/controls."""
+    with conn.cursor() as cur:
+        programs = all_rows(cur, """SELECT DISTINCT ON (t.program_id) t.program_id, t.customer_id, t.program_type, t.rate,
+                                           t.rate_unit, t.projected_redemption, t.window_start, t.window_end,
+                                           t.requires_proof, t.source_clause_id, t.amendment_id, t.decision_time
+                                    FROM program_terms t ORDER BY t.program_id, t.decision_time DESC, t.valid_from DESC""")
+        history = all_rows(cur, """SELECT action, count(*)::int AS n, count(DISTINCT decided_by)::int AS people
+                                   FROM historical_decisions GROUP BY 1 ORDER BY 2 DESC""")
+    return out({"programs": programs, "history": history, "policy": policy.describe()})
 
 
 class Injection(BaseModel):

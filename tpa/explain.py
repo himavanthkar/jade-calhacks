@@ -16,7 +16,7 @@ from decimal import Decimal
 
 import psycopg
 
-from tpa import model
+from tpa import model, problem
 from tpa.accrual import rate
 from tpa.asof import entry_history, liability_outstanding, terms_as_of
 from tpa.constants import Account, period_end, period_of
@@ -201,7 +201,13 @@ def overrulings(cur: psycopg.Cursor) -> list[dict]:
             for r in rows]
 
 
+PROBLEM = re.compile(r"\b(what problem|why (does|do|should) (it|this|jade|anyone)|why .*matter|what does jade (do|solve)|the problem)\b", re.I)
+
+
 def ask(cur: psycopg.Cursor, question: str) -> dict:
+    if PROBLEM.search(question):
+        return {"question": question, "answer": problem.answer(), "chains": [],
+                "knowledge": {"facts": list(problem.FACTS)}, "drafted_by": "agent"}
     if NO.search(question):
         said_no = overrulings(cur)
         if said_no:

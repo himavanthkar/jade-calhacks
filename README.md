@@ -9,7 +9,7 @@
 <p align="center">
   <a href="docs/getting-started.md">Getting started</a> &nbsp;·&nbsp;
   <a href="docs/architecture.md">Architecture</a> &nbsp;·&nbsp;
-  <a href="docs/proof.md">Proof</a> &nbsp;·&nbsp;
+  <a href="docs/research/jade-research.pdf">Research</a> &nbsp;·&nbsp;
   <a href="docs/api.md">API</a> &nbsp;·&nbsp;
   <a href="spec.md">Build spec</a>
 </p>
@@ -283,7 +283,11 @@ The mailbox images are rendered from the scenario's own .eml files by `scripts/g
 as a demo mailbox; with Gmail connected (`gws auth login -s gmail`) the real inbox shows instead. The full
 script with timings and voice-over is in [Demo and close exports](docs/jade-demo-and-close-exports.md).
 
-## Proof
+## Research
+
+**Paper:** [JADE: Evaluating an Autonomous Trade Promotion Accountant](docs/research/jade-research.pdf)
+([Google Drive](https://drive.google.com/file/d/1G2cI9gnatn7NC0VNsRNSh0VsTwdNWej0/view), [LaTeX source](docs/research/jade-research.tex)): how the evals and the 10-K backtest
+were run, every results table, and the limitations.
 
 50 errors are planted in 24 months of books, with an answer key. JADE is scored on what it finds.
 
@@ -313,7 +317,7 @@ with its source. **What is simulated:** every transaction, generated determinist
 because transaction-level trade data is never public. Every close checks the simulated liability against
 General Mills' reported ratio.
 
-The full breakdown, and a table of what it got wrong and how each fix is tested, is in [Proof](docs/proof.md).
+The full breakdown, and a table of what it got wrong and how each fix is tested, is in [the proof notes](docs/proof.md).
 
 ## Getting started
 
@@ -344,6 +348,7 @@ Python · FastAPI · Postgres 16 (bitemporal, insert-only ledger) · Claude · R
 | [Presenting the data](docs/presenting.md) | the Integrations map, the Backtest page, what each chart says |
 | [Benchmarks](docs/benchmarks.md) | the simulation beside sourced industry and peer figures |
 | [Demo and close exports](docs/jade-demo-and-close-exports.md) | the October close walkthrough, screen by screen, and the exports |
+| [Research paper](docs/research/jade-research.pdf) | how we evaluated and backtested, all results tables, limitations (PDF, LaTeX source beside it) |
 | [Proof](docs/proof.md) | real vs simulated, scores, what it got wrong |
 | [API](docs/api.md) | endpoints and live scenarios |
 | [Data](DATA.md) | where every row comes from |

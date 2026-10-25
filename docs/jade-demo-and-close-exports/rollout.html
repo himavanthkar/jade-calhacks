@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#efe7dc;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#1d1b19}
+.bg{width:1560px;height:1080px;position:relative;overflow:hidden;background:#efe7dc}
+.bg:before,.bg:after{content:"";position:absolute;inset:0;background:linear-gradient(28deg,transparent 49.8%,#e2d8ca 50%,transparent 50.2%),linear-gradient(-28deg,transparent 49.8%,#e2d8ca 50%,transparent 50.2%)}
+.card{z-index:1;position:absolute;left:90px;top:80px;right:90px;bottom:80px;background:#fff;border-radius:44px;box-shadow:0 0 0 14px #e7ddd0;padding:56px 80px 40px}
+h1{font:600 30px "Helvetica Neue",Arial;margin:0 0 6px;letter-spacing:-.5px}.sub{font-size:18px;color:#6f6c64;margin:0 0 30px}
+.phases{display:grid;grid-template-columns:repeat(4,1fr);height:620px;border-bottom:2px solid #1d1b19;position:relative}
+.ph{border-left:2px solid #ece8e2;padding:0 10px;position:relative}.ph:first-child{border-left:0}
+.ph h2{font:italic 500 24px Georgia,serif;margin:0 0 6px 6px}.ph .what{font-size:15px;color:#6f6c64;margin:0 0 0 6px;line-height:1.35;height:62px}
+.bar{position:absolute;left:10px;right:10px;bottom:0;border-radius:14px 14px 0 0;padding:26px 26px}
+.bar b{display:block;font:500 64px "Helvetica Neue",Arial;letter-spacing:-2px;line-height:1}.bar span{display:block;font-size:20px;margin-top:6px}
+.bar .gate{position:absolute;left:26px;right:20px;bottom:22px;font-size:14px;line-height:1.4;color:#3b2a20}
+.b1{height:140px;background:#fde3d3}.b2{height:250px;background:#fcc59f}.b3{height:380px;background:#f9a46b}.b4{height:500px;background:#E86F31;border-radius:14px 14px 14px 14px}
+.b4 .gate{color:#3a1405}
+.dates{display:flex;justify-content:space-between;font:italic 22px Georgia,serif;margin-top:22px}
+</style></head><body><div class="bg"><div class="card">
+<h1>Rolling JADE out at General Mills</h1><p class="sub">Each phase opens only when the one before passes its gate, measured on real decisions.</p>
+<div class="phases">
+ <div class="ph"><h2>Phase 1 · Shadow</h2><p class="what">JADE proposes, analysts decide. Nothing posts.</p><div class="bar b1"><b>50</b><span>Walmart deductions/day</span></div></div>
+ <div class="ph"><h2>Phase 2</h2><p class="what">Walmart scan-back, within mined thresholds</p><div class="bar b2"><b>25%</b><span>of deduction volume</span><div class="gate">Gate: ≥98% agreement with analysts in shadow · 0 wrong clears</div></div></div>
+ <div class="ph"><h2>Phase 3</h2><p class="what">+ Costco and Kroger; first close signed in JADE</p><div class="bar b3"><b>50%</b><span>of deduction volume</span><div class="gate">Gate: every clear reconciles (AR and accrual) · 10% human re-check clean</div></div></div>
+ <div class="ph"><h2>Phase 4</h2><p class="what">People see exceptions only</p><div class="bar b4"><b>100%</b><span>of deduction volume</span><div class="gate">Gate: second close signed with all five checks passing · no SoD overrides</div></div></div>
+</div>
+<div class="dates"><span>Close 1 · day 1</span><span>Close 2 · day 45</span></div>
+</div></div></body></html>

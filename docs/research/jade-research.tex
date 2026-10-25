@@ -1,0 +1,298 @@
+% JADE research note: how the system is evaluated and backtested, with the results.
+% Build: tectonic docs/research/jade-research.tex  (writes jade-research.pdf beside it)
+% Numbers: seed 1337 played year (scripts/step.py --players; tpa/evaluate.py), the make evals run of
+% 2026-10-24 (frontend/src/api/fixtures/evals.json), and scripts/backtest.py (tpa/backtest.py, tpa/filings.py).
+\documentclass[10pt,letterpaper]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{newtxtext,newtxmath}
+\usepackage{booktabs,multirow,microtype}
+\usepackage{url}\usepackage[hidelinks,pdftitle={JADE: An Autonomous Accountant for Trade Promotions at General Mills},pdfauthor={Saksham Adhikari, Kusum Bhattarai Sharma, Himavanth Karpurapu, Gabin Lee}]{hyperref}
+\Urlmuskip=0mu plus 1mu
+\usepackage{titlesec}
+\renewcommand{\thesection}{\Roman{section}}\renewcommand{\thesubsection}{\thesection-\Alph{subsection}}
+\titleformat{\section}{\normalfont\large\scshape\centering}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalfont\itshape}{\Alph{subsection}.}{0.5em}{}
+\renewcommand{\arraystretch}{1.12}
+\newcommand{\tabcap}[2]{\begin{center}\small TABLE #1\\[1pt]\textsc{#2}\end{center}\vspace{-6pt}}
+\newenvironment{tbl}{\par\medskip\noindent\begin{minipage}{\linewidth}}{\end{minipage}\par\medskip}
+\newcommand{\note}[1]{\par\vspace{2pt}\noindent{\footnotesize #1}\par}
+
+\title{\Large JADE: An Autonomous Accountant for Trade Promotions at General Mills\\
+\large Planted-error evaluation, refusal on real data, and a walk-forward backtest on General Mills' 10-Ks}
+\author{Saksham Adhikari \and Kusum Bhattarai Sharma \and Himavanth Karpurapu \and Gabin Lee}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+JADE fills two finance seats at a consumer packaged goods manufacturer: the trade promotion accountant
+and the deduction analyst. It accrues promotional obligations on shipment as contra-revenue (ASC 606~\cite{asc606-cpc,asc606-vc}),
+matches retailer deductions to programs, clears what the agreement supports, disputes what it does not,
+restates closed months when terms change, and packages the close for a person to sign. Every number is
+computed by code into an insert-only, bitemporal ledger; a language model only drafts wording. We
+evaluate it three ways. \emph{Planted errors:} 42 errors and 8 clean look-alikes hidden in 24 months of
+seeded books; JADE catches 42 of 42 with precision 1.000 at month 12, on the development seed and on two
+seeds it never saw. \emph{Refusal on real data:} 4,996 real emails and 102 real commercial contracts; it
+acts on none. \emph{Real books:} a walk-forward backtest of General Mills' accrued trade promotion
+liability, FY2021--FY2026, where the best estimator misses by 9.4\% and the close's analytical review
+raises no false alarm on audited figures.
+\end{abstract}
+
+\section{Problem}
+Trade spend is the second-largest line on a consumer packaged goods income statement after cost of goods,
+about 20\% of gross sales~\cite{strategyand}.
+General Mills sold \$18.42B in fiscal 2026, 22\% of it to Walmart, and carried \$493M of accrued trade and
+coupon promotion liabilities at year end, which its 10-K names as a critical accounting estimate~\cite{gis26}. The
+manufacturer books what it owes when the truck leaves and learns what it really owed months later, when
+the retailer deducts it from a payment, often at a different rate and with backup that does not tie.
+When the estimate trues up, the quarter moves: trade expense timing took 13 points off Q4 adjusted
+operating profit growth in FY2025 and added 7 points in FY2026~\cite{gis-q4-25,gis-q4-26}.
+
+Deduction-level data is never public, on either side of the trade. That shapes the evaluation: the
+transaction-level behaviour is tested on seeded books with an answer key (Sections~\ref{sec:planted}
+and~\ref{sec:learning}), refusal is tested on real public text (Section~\ref{sec:escalating}), and the one
+estimate that is public, the year-end liability, is backtested on the real filings (Section~\ref{sec:backtest}).
+
+\section{System under test}
+Each step runs one month and handles each source row on the day it lands: read agreements into terms
+(each term cites its clause), accrue on shipment, match each deduction to a program, its shipments and
+its claim backup, run 12 controls mined from last year's decisions, then clear, dispute or ask. What the
+agreement cannot settle becomes a card for the person who owns the decision, with a recommendation; that
+person's answer becomes a precedent, reused for the same situation up to the amount approved.
+Five verifiability gates (journals balance, reversals mirror, no stale accruals, claims inside their
+windows, nothing cleared beyond what was accrued) block a period rather than warn. Segregation of duties is
+a capability check that throws: the person who negotiated a deal cannot approve its money. Settlement follows
+the trade allowance and deduction workflow of commercial ERPs~\cite{msft} and keeps credit-loss exposure
+(ASC 326~\cite{asc326}) apart from promotional liabilities.
+
+\section{Evaluation method}
+\subsection{Seeded books and the answer key}
+A deterministic generator (seed 1337) produces 24 months of shipments, invoices, returns, deductions,
+claim backup, agreements and amendments as documents, and last year's human decisions, for General Mills'
+programs at Walmart, Costco and Kroger. Into these it plants 42 errors of known types (over-claims,
+duplicates, missing backup, stale accruals, an unentered amendment, self-approval attempts and others) and
+8 clean look-alikes that must pass. The answer key (\texttt{data/answer\_key.json}) is never visible to
+the system. Volumes are calibrated to the 10-K: every close checks the simulated liability against
+General Mills' reported ratio to net sales (2.16\%--3.37\% simulated, against 2.41\% and 2.68\% reported).
+
+\subsection{Scoring}
+\texttt{tpa/evaluate.py} scores findings against the key by evidence: a finding counts against a planted
+row when its evidence names one of the row's specific ids (deduction, shipment, event, amendment or accrual
+key); program ids are too broad to count. A gate failure counts when the period's gate results carry a
+violation keyed to the row. We report, cumulatively by month:
+\begin{itemize}\itemsep0pt
+\item \emph{precision}: findings that match a planted error, over all findings;
+\item \emph{recall}: planted errors caught, over planted errors due by that month;
+\item \emph{escalation rate}: findings in the month that went to a person;
+\item \emph{autonomy}: customer-periods signed with no escalation raised in them.
+\end{itemize}
+The humans who answer cards in an unattended run are played: they take the agent's recommendation, or a
+model plays the role and must pick one of the card's options. Findings on rows injected live during a
+demo are scored apart, since the key never planted them.
+
+\subsection{Generalisation and reliability}
+The same generator with seeds 42 and 2024, which were never developed against, places the same error types
+differently. Holdouts are sized to the claim~\cite{kapoor}: this shows the system is not fitted to one answer key; it does not show it would catch an error
+type never planted. Reliability is measured as pass\textasciicircum{}$k$~\cite{taubench}, the chance that all $k$ tries succeed: the full year is run $k=3$ times
+from the same seed and the ledger and decision hashes must be identical.
+
+\subsection{Refusal on real data}
+\label{sec:escalating-method}
+An autonomous accountant's worst failure is acting on input it should not trust. We run real public text
+through the two readers that turn documents into source rows: 3,000 business emails
+(\texttt{corbt/enron-emails}~\cite{hf-enron}) and 1,996 spam and ham emails (\texttt{SetFit/enron\_spam}~\cite{hf-spam}) through the mail
+reader, and 102 commercial contracts from CUAD~\cite{cuad} (\texttt{chenghao/cuad\_qa}~\cite{hf-cuad}), wrapped as amendments, through
+the agreement reader. The pass condition is zero actions and zero extracted terms. We also reworded 28
+deduction notices by hand to test that the mail reader holds what it cannot parse instead of guessing.
+
+\section{Backtest method}
+\label{sec:backtest-method}
+The one trade promotion number that is public is the year-end liability. \texttt{tpa/backtest.py} walks
+forward one fiscal year-end close at a time over FY2021--FY2026, using figures quoted from General Mills'
+10-K filings on SEC EDGAR, CIK 0000040704~\cite{gis21,gis22,gis23,gis24,gis25,gis26} (\texttt{tpa/filings.py}). At each close an estimator sees only the 10-Ks filed
+before that year's own 10-K, plus the year's net sales, which the company knows at its close; the estimate
+is then scored against the liability the 10-K reported. Four estimators:
+\begin{itemize}\itemsep0pt
+\item \emph{carry forward}: last year's liability;
+\item \emph{annual ratio}: last year's liability over net sales, times this year's net sales (the measure the
+close's analytical review uses);
+\item \emph{Q4 ratio}: the same on fourth-quarter sales, since claims settle within months;
+\item \emph{mean Q4 ratio}: the Q4 ratio averaged over every year public so far.
+\end{itemize}
+Two of the close's controls are replayed on the real books. Because those books were audited, any flag is a
+false alarm: the \emph{analytical review} (the liability ratio against the prior 10-K's, at the policy
+tolerance of $\pm$50\%), and a \emph{restatement check} (a year end stated differently a year later).
+This scores the top-down estimate and the controls at company level, never deduction matching.
+
+\section{Results}
+\subsection{Planted errors}
+\label{sec:planted}
+\begin{tbl}
+\tabcap{I}{Self-improving: planted errors, scored monthly (seed 1337)}
+\begin{center}\begin{tabular}{lrrrrrr}
+\toprule
+Month & Planted & Caught & Precision & Recall & Escalation & Autonomy \\
+\midrule
+1  & 4  & 4  & 1.000 & 1.000 & 0.400 & 0.667 \\
+3  & 10 & 10 & 1.000 & 1.000 & 0.250 & 0.667 \\
+5  & 21 & 21 & 1.000 & 1.000 & 0.333 & 0.600 \\
+6  & 27 & 27 & 1.000 & 1.000 & 0.143 & 0.611 \\
+7  & 30 & 30 & \textbf{0.857}$^\dagger$ & 1.000 & 0.222 & 0.571 \\
+8  & 35 & 35 & 1.000 & 1.000 & 0.133 & 0.542 \\
+9  & 37 & 37 & 1.000 & 1.000 & 0.800 & 0.518 \\
+10 & 40 & 40 & 1.000 & 1.000 & 0.143 & 0.533 \\
+12 & 42 & 42 & 1.000 & 1.000 & 0.500 & 0.556 \\
+\bottomrule
+\end{tabular}\end{center}
+\note{Cumulative. $^\dagger$Six July rate conflicts were raised before the planted amendment they trace to
+entered the scoring window. Autopilot without the judgment engine catches 40 of 42.}
+\end{tbl}
+
+\begin{tbl}
+\tabcap{II}{Generalisation and reliability}
+\begin{center}\begin{tabular}{lrrr}
+\toprule
+Run & Caught & Precision & Recall \\
+\midrule
+Seed 1337 (development) & 42 / 42 & 1.000 & 1.000 \\
+Seed 42 (unseen) & 42 / 42 & 1.000 & 1.000 \\
+Seed 2024 (unseen) & 42 / 42 & 1.000 & 1.000 \\
+\bottomrule
+\end{tabular}\end{center}
+\note{Reliability, pass\textasciicircum3 on seed 1337: 3 of 3 full runs identical (979 ledger lines, 75 findings,
+ledger hash \texttt{fa85730190eb4cc1}, decisions hash \texttt{9b39dd7e5a9f7ba3}).}
+\end{tbl}
+
+The escalation rate does not fall steadily because new kinds of situations keep arriving through the
+year (a learned control in September, a new ambiguous clause); repeated situations do not escalate,
+as Table~III shows.
+
+\subsection{Self-learning}
+\label{sec:learning}
+\begin{tbl}
+\tabcap{III}{Self-learning: answers reused as precedent}
+\begin{center}\begin{tabular}{lrr}
+\toprule
+Situation & Cards & Share \\
+\midrule
+First-time question, asked a person & 17 & --- \\
+Repeat situation & 40 & 100.0\% \\
+\quad settled silently by precedent & \textbf{37} & \textbf{92.5\%} \\
+\quad asked again & 3 & 7.5\% \\
+\midrule
+\multicolumn{3}{l}{\emph{Why the three were asked again}} \\
+FN-0061 \; \$42,413.95 vs.\ approved \$41,319.56 & \multicolumn{2}{r}{over approval} \\
+FN-0072 \; \$48,166.44 vs.\ approved \$42,413.95 & \multicolumn{2}{r}{over approval} \\
+FN-0075 \; \$58,315.83 vs.\ approved \$48,166.44 & \multicolumn{2}{r}{over approval} \\
+\bottomrule
+\end{tabular}\end{center}
+\note{Seed 1337, twelve played months. A precedent covers the same situation up to the amount a person
+approved; a larger exposure goes back to a person.}
+\end{tbl}
+
+\subsection{Self-escalating: refusal on real data}
+\label{sec:escalating}
+\begin{tbl}
+\tabcap{IV}{Self-escalating: inputs it must not act on}
+\begin{center}\begin{tabular}{llrrr}
+\toprule
+Dataset & Source & $n$ & Acted on & Held / refused \\
+\midrule
+\texttt{corbt/enron-emails} & Hugging Face & 3,000 & \textbf{0} & 3,000 \\
+\texttt{SetFit/enron\_spam} & Hugging Face & 1,996 & \textbf{0} & 1,996 \\
+CUAD contracts (\texttt{chenghao/cuad\_qa}) & Hugging Face & 102 & 0 terms & 102 \\
+\midrule
+Reworded deduction notices & ours & 28 & \multicolumn{2}{r}{25 parsed $\rightarrow$ 28 after 2 fixes} \\
+\bottomrule
+\end{tabular}\end{center}
+\note{Rewording found two real parser gaps (bulleted labels, HTML-escaped senders), fixed in
+\texttt{tpa/mail.py}.}
+\end{tbl}
+
+\subsection{Real books: the 10-K backtest}
+\label{sec:backtest}
+\begin{tbl}
+\tabcap{V}{Estimate at each close against the reported liability (\$M)}
+\begin{center}\begin{tabular}{lrrrrrr}
+\toprule
+FY & Reported & Carry fwd & Annual ratio & Q4 ratio & Mean Q4 & Review drift \\
+\midrule
+2021 & 508 & 471.0 & 484.4 & 424.2 & 424.2 & $+4.9\%$ \\
+2022 & 420 & 508.0 & 532.3 & 549.3 & 504.0 & $-21.1\%$ \\
+2023 & 394 & 420.0 & 444.4 & 431.9 & 489.5 & $-11.3\%$ \\
+2024 & 425 & 394.0 & 389.4 & 369.2 & 436.4 & $+9.2\%$ \\
+2025 & 470 & 425.0 & 417.1 & 410.8 & 419.6 & $+12.7\%$ \\
+2026 & 493 & 470.0 & 444.4 & 475.5 & 433.0 & $+10.9\%$ \\
+\bottomrule
+\end{tabular}\end{center}
+\note{Each estimate made from filings public before that year's 10-K. Review drift is the year's
+liability-to-sales ratio against the prior year's.}
+\end{tbl}
+
+\begin{tbl}
+\tabcap{VI}{Real books: General Mills 10-K backtest, summary}
+\begin{center}\begin{tabular}{lrrrr}
+\toprule
+Estimate at each close & MAE (\$M) & Mean error & Bias & Worst year \\
+\midrule
+Carry last year forward & \textbf{41.7} & \textbf{9.4\%} & $-0.2\%$ & 21.0\% \\
+Annual ratio to net sales & 53.9 & 12.3\% & $+0.9\%$ & 26.7\% \\
+Q4 ratio to net sales & 63.9 & 14.4\% & $-0.9\%$ & 30.8\% \\
+Mean Q4 ratio & 64.2 & 14.4\% & $+1.2\%$ & 24.2\% \\
+\bottomrule
+\end{tabular}\end{center}
+\note{Accrued trade and coupon promotions at each fiscal year end, FY2021--FY2026 (six closes,
+\$394M--\$508M). Analytical review at $\pm$50\%: 0 false alarms; largest drift $-21.1\%$ (FY2022).
+Restatements of a reported year end: none.}
+\end{tbl}
+
+Two findings follow. First, the audited liability swings by up to 21.1\% a year relative to sales, so a
+$\pm$50\% analytical review can never fail on these books; a tolerance near $\pm$22\% would be calibrated
+on the filings. Second, no top-down rule beats carrying last year forward, and scaling by sales does worse:
+the balance follows which programs run and how late retailers claim, which is why JADE accrues program by
+program rather than as a share of sales.
+
+\section{Limitations}
+Transaction-level results are on simulated books: the generator and the error types are ours, and
+unseen seeds vary placement, not kind. The played humans accept recommendations; real reviewers will
+disagree, and the precedent store has only been exercised on the situations it saw. The backtest scores
+six company-level year ends, not deduction matching, and FY2021's estimate rests on one prior filing.
+The tolerances used are company policy settings, not GAAP requirements.
+
+\section{Reproducing}
+\begin{flushleft}\small
+\texttt{make db-up \&\& make db-scratch \&\& uv sync \&\& make seed} \quad 24 months, seed 1337\\
+\texttt{make players} \quad the played year and its scores (Tables I and III)\\
+\texttt{uv run python scripts/evaluate.py --as-of month-1 --as-of month-9} \quad scoring at chosen months\\
+\texttt{make backtest} \quad Tables V and VI, no database needed\\
+\texttt{tectonic docs/research/jade-research.tex} \quad this paper
+\end{flushleft}
+
+\section*{References}
+\begingroup\small
+\renewcommand{\refname}{}\vspace{-24pt}
+\begin{thebibliography}{99}\setlength{\itemsep}{1pt}
+\bibitem{gis26} General Mills, Inc., Form 10-K for the fiscal year ended May 31, 2026, filed 2026-07-01, SEC accession 0001628280-26-046466. \url{https://www.sec.gov/Archives/edgar/data/40704/000162828026046466/gis-20260531.htm}
+\bibitem{gis25} General Mills, Inc., Form 10-K, fiscal 2025, filed 2025-06-26, accession 0001193125-25-147079. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312525147079/d938443d10k.htm}
+\bibitem{gis24} General Mills, Inc., Form 10-K, fiscal 2024, filed 2024-06-26, accession 0001193125-24-168943. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312524168943/}
+\bibitem{gis23} General Mills, Inc., Form 10-K, fiscal 2023, filed 2023-06-28, accession 0001193125-23-177500. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312523177500/}
+\bibitem{gis22} General Mills, Inc., Form 10-K, fiscal 2022, filed 2022-06-30, accession 0001193125-22-185257. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312522185257/}
+\bibitem{gis21} General Mills, Inc., Form 10-K, fiscal 2021, filed 2021-06-30, accession 0001193125-21-204830; fiscal 2020, filed 2020-07-02, accession 0001193125-20-186469. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312521204830/}
+\bibitem{gis-q4-25} General Mills, Inc., Q4 fiscal 2025 earnings release, Form 8-K Ex.~99, 2025-06-25, accession 0001193125-25-146132. \url{https://www.sec.gov/Archives/edgar/data/40704/000119312525146132/}
+\bibitem{gis-q4-26} General Mills, Inc., Q4 fiscal 2026 earnings release, Form 8-K Ex.~99, 2026-07-01, accession 0001628280-26-046337. \url{https://www.sec.gov/Archives/edgar/data/40704/000162828026046337/}
+\bibitem{strategyand} Strategy\& (PwC), ``Zero-based trade for CPG leaders,'' 2017. \url{https://www.strategyand.pwc.com/gx/en/insights/2017/zero-based-trade-for-cpg-leaders/zero-based-trade-for-cpg-leaders.pdf}
+\bibitem{asc606-cpc} Deloitte, \emph{Roadmap: Revenue Recognition}, \S6.6, Consideration payable to a customer (ASC 606-10-32-25 to 32-27). \url{https://dart.deloitte.com/USDART/home/codification/revenue/asc606-10/roadmap-revenue-recognition/chapter-6-step-3-determine-transaction/6-6-consideration-payable-a-customer}
+\bibitem{asc606-vc} Deloitte, \emph{Roadmap: Revenue Recognition}, \S6.3, Variable consideration (ASC 606-10-32-5 to 32-13). \url{https://dart.deloitte.com/USDART/home/codification/revenue/asc606-10/roadmap-revenue-recognition/chapter-6-step-3-determine-transaction/6-3-variable-consideration}
+\bibitem{asc326} Deloitte, \emph{Roadmap: Current Expected Credit Losses}, \S5.2, Trade receivables and contract assets (ASC 326). \url{https://dart.deloitte.com/USDART/home/codification/assets/32x/asc326-10/roadmap-credit-losses-cecl/chapter-5-application-cecl-model-off/5-2-trade-receivables-contract-assets}
+\bibitem{msft} Microsoft, ``Trade allowance management and deduction settlement,'' Dynamics 365 Supply Chain Management documentation. \url{https://learn.microsoft.com/en-us/dynamics365/supply-chain/sales-marketing/trade-allowance}
+\bibitem{taubench} S.~Yao, N.~Shinn, P.~Razavi, K.~Narasimhan, ``$\tau$-bench: A benchmark for tool-agent-user interaction in real-world domains,'' arXiv:2406.12045, 2024.
+\bibitem{kapoor} S.~Kapoor, B.~Stroebl, Z.~S.~Siegel, N.~Nadgir, A.~Narayanan, ``AI agents that matter,'' arXiv:2407.01502, 2024.
+\bibitem{cuad} D.~Hendrycks, C.~Burns, A.~Chen, S.~Ball, ``CUAD: An expert-annotated NLP dataset for legal contract review,'' NeurIPS Datasets and Benchmarks, arXiv:2103.06268, 2021.
+\bibitem{hf-cuad} \texttt{chenghao/cuad\_qa}, Hugging Face dataset. \url{https://huggingface.co/datasets/chenghao/cuad_qa}
+\bibitem{hf-enron} \texttt{corbt/enron-emails}, Hugging Face dataset (the Enron email corpus). \url{https://huggingface.co/datasets/corbt/enron-emails}
+\bibitem{hf-spam} \texttt{SetFit/enron\_spam}, Hugging Face dataset. \url{https://huggingface.co/datasets/SetFit/enron_spam}
+\end{thebibliography}
+\endgroup
+
+\end{document}

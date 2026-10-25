@@ -1,0 +1,27 @@
+@font-face{font-family:'Inter';src:url('/fonts/Inter-variable.ttf') format('truetype');font-weight:100 900;font-display:swap}
+.jade-landing{position:relative;isolation:isolate;overflow:hidden;min-height:100svh;background:#fcfaf7;color:#651d19;font-family:Inter,sans-serif;display:flex;flex-direction:column;animation:landing-in .3s ease-out}
+.landing-matrix{position:absolute;z-index:-1;inset:200px 0 0;display:grid;grid-template-columns:repeat(18,minmax(0,1fr));grid-template-rows:repeat(14,minmax(0,1fr));gap:1px;pointer-events:none;min-height:700px}
+.landing-matrix i{background:#ffb17f;opacity:var(--alpha);animation:matrix-assemble 1.2s cubic-bezier(.22,1,.36,1) var(--delay) both}
+.jade-landing .landing-nav{display:flex;align-items:center;justify-content:space-between;padding:32px 5.56%;height:112px;flex-shrink:0}
+.landing-brand{font:700 32px/1.2 'EB Garamond',serif;color:#ff7c38}
+.jade-landing button{font-family:Inter,sans-serif;border:0;background:transparent;color:#651d19;cursor:pointer;padding:12px;font-size:14px}
+.jade-landing button:hover{background:#f7e8de}.jade-landing button:focus-visible{outline:2px solid #651d19;outline-offset:3px}
+.landing-intro{text-align:center;margin:54px auto 0;padding:0 24px;display:flex;flex-direction:column;align-items:center;gap:20px;animation:landing-text 3s ease-out 1.6s both}
+.landing-eyebrow{font-size:11px;line-height:1.2;letter-spacing:2px;color:#77726c}
+.jade-landing h1{font:700 68px/1.2 'EB Garamond',serif;letter-spacing:0;margin:0;color:#651d19}
+.landing-description{font-size:18px;line-height:1.2;color:#77726c}
+.landing-capabilities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;width:min(1076px,90%);margin:clamp(80px,20vh,194px) auto 0;animation:landing-text 3s ease-out 1.6s both}
+.landing-capabilities article{text-align:center;padding:20px;opacity:.65}.landing-capabilities span{font-size:12px;color:#ff7c38}.landing-capabilities h2{font:700 25px/1.2 'EB Garamond',serif;margin:14px 0}.landing-capabilities p{font-size:14px;line-height:1.2;color:#77726c;white-space:pre-line}
+.landing-footer{display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:auto;padding:38px 20px 26px;animation:landing-text 3s ease-out 1.6s both}.landing-footer span{font-size:10px;letter-spacing:1.5px;color:#77726c}.jade-landing .landing-footer button{background:#651d19;color:white;padding:16px 28px;border-radius:6px}.jade-landing .landing-footer button:hover{background:#812a24}
+@keyframes matrix-assemble{from{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.35)}to{opacity:var(--alpha);transform:translate(0,0) scale(1)}}
+@keyframes landing-text{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes landing-in{from{opacity:0}to{opacity:1}}
+@media(max-width:700px){.jade-landing .landing-nav{padding:24px;height:88px}.landing-intro{margin-top:46px}.jade-landing h1{font-size:48px}.landing-description{font-size:15px;line-height:1.5}.landing-capabilities{grid-template-columns:1fr;gap:4px;margin-top:64px}.landing-capabilities article{padding:18px}.landing-matrix{inset:150px 0 0}.landing-footer span{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.jade-landing,.landing-matrix i,.landing-intro,.landing-capabilities,.landing-footer{animation:none}}
+/* Dissolve the landing over the rendered dashboard without a blank frame. */
+.landing-overlay{position:fixed;inset:0;z-index:1000;overflow:hidden}
+.landing-overlay .jade-landing{height:100%;overflow-y:auto}
+body:has(.landing-overlay){overflow:hidden}
+.jade-landing.landing-leaving{animation:landing-dissolve 1s ease-in-out forwards;pointer-events:none}
+@keyframes landing-dissolve{from{opacity:1}to{opacity:0}}
+@media(prefers-reduced-motion:reduce){.jade-landing.landing-leaving{animation:none}}

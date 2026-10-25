@@ -83,7 +83,7 @@ def test_ask_defends_calls_that_posted_nothing(api):
     sod = next(f for f in api.get("/api/period/2026-01").json()["findings"] if f["control_id"] == "CTL-SOD")
     traced = ask(f"Why did you raise {sod['id']}?")
     assert traced["chains"][0]["entry_id"] == sod["id"]
-    assert traced["chains"][0]["steps"][0]["text"].startswith("CTL-SOD")
+    assert traced["chains"][0]["steps"][0]["ids"] == ["CTL-SOD"] and "CTL-" not in traced["answer"].split("\n", 1)[1]
     card = api.get("/api/escalations").json()[0]
     assert ask(f"What happened with {card['id']}?")["chains"][0]["entry_id"] == card["finding_id"]
     assert sod["id"] in ask("Can the sales lead approve his own claim?")["answer"]

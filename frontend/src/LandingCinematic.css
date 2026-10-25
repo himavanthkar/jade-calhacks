@@ -1,0 +1,24 @@
+.landing-nav-actions{display:flex;align-items:center;gap:24px}.landing-nav-actions a{font-size:12px;color:#77726c;text-decoration:none}.landing-nav-actions a:hover{color:#651d19}
+.landing-cinematic{background:#fcfaf7;perspective:1000px}
+.cinema-atmosphere{position:absolute;inset:0;pointer-events:none;z-index:-1;overflow:hidden;background:radial-gradient(ellipse at 50% 60%,transparent 35%,#ffd9be33 100%)}
+.cinema-orbit{position:absolute;left:50%;top:50%;width:450px;height:450px;margin:-225px;border:1px solid #ff7c3840;border-radius:50%;box-shadow:0 0 100px #ff7c3820,inset 0 0 80px #ff7c3810;animation:cinema-orbit 4s cubic-bezier(.2,.8,.2,1) both}
+.cinema-monogram{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);font:700 100px 'EB Garamond',serif;color:#651d19;animation:cinema-monogram 2.8s ease both}
+.cinema-sweep{position:absolute;inset:-40%;background:linear-gradient(110deg,transparent 42%,#ffbc7d26 49%,#fff9f380 50%,transparent 57%);animation:cinema-sweep 4s ease-in-out 1.6s both}
+.landing-cinematic .landing-matrix i{animation:cinema-cells 3s cubic-bezier(.2,.7,.2,1) var(--delay) both}
+.landing-cinematic .landing-intro{animation:landing-text 1.6s ease 2.8s both}
+.landing-cinematic h1{font-size:clamp(60px,6.1vw,88px);line-height:1.05}
+.landing-cinematic h1 span{display:inline-block;animation:cinema-title 2s cubic-bezier(.22,1,.36,1) 2.9s both}
+.landing-cinematic h1 span:last-child{animation-delay:3.15s;color:#8a3024}
+.landing-cinematic .landing-description{animation:landing-text 1.6s ease 3.7s both}
+.landing-cinematic .landing-capabilities{animation:none;margin-top:clamp(80px,17vh,160px)}
+.landing-cinematic .landing-capabilities article{opacity:1;border-top:1px solid #b9704324;background:linear-gradient(#fff9,transparent);animation:cinema-card 1.3s cubic-bezier(.22,1,.36,1) 4.5s both}
+.landing-cinematic .landing-capabilities article:nth-child(2){animation-delay:4.8s}.landing-cinematic .landing-capabilities article:nth-child(3){animation-delay:5.1s}
+.landing-cinematic .landing-footer{animation:landing-text 1s ease 5.5s both}
+@keyframes cinema-cells{0%{opacity:0;transform:translate(calc(var(--gather-x)*-1),220px) rotate(35deg) scale(.15)}35%{opacity:.16;transform:translate(var(--gather-x),var(--gather-y)) rotate(-12deg) scale(.25)}60%{opacity:.23;transform:translate(var(--gather-x),var(--gather-y)) rotate(0) scale(.4)}100%{opacity:var(--alpha);transform:translate(0,0) rotate(0) scale(1)}}
+@keyframes cinema-orbit{0%{opacity:0;transform:scale(.1) rotate(-45deg)}35%{opacity:1;transform:scale(.8) rotate(0)}65%{opacity:.8}100%{opacity:0;transform:scale(2.5) rotate(90deg)}}
+@keyframes cinema-monogram{0%,15%{opacity:0;filter:blur(8px)}35%,60%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(8px)}}
+@keyframes cinema-sweep{from{opacity:0;transform:translateX(-55%)}40%{opacity:1}to{opacity:0;transform:translateX(55%)}}
+@keyframes cinema-title{from{opacity:0;transform:translateY(40px) rotateX(-35deg);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes cinema-card{from{opacity:0;transform:translateY(35px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:700px){.landing-nav-actions{gap:6px}.landing-nav-actions a{font-size:10px}.jade-landing .landing-nav-actions button{font-size:11px;padding:8px}.landing-cinematic h1{font-size:54px}.landing-cinematic .landing-capabilities{margin-top:64px}}
+@media(prefers-reduced-motion:reduce){.landing-cinematic *{animation:none!important}.cinema-atmosphere{display:none}}

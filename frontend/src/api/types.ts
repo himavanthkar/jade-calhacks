@@ -35,8 +35,14 @@ export interface Flux {
 }
 /** State and gates live per (period, customer). */
 export interface CustomerPeriod { period: string; customer_id: CustomerId; state: PeriodState; signed_by: string | null; signed_at: string | null; gate_results: Record<string, GateResult> | null }
+/** The close's check of the total trade liability against General Mills' reported ratio (latest 10-K at the time). */
+export interface AnalyticalReview {
+  id: string; period: string; measure: string; liability: DecimalValue; net_sales_annualized: DecimalValue; ratio: DecimalValue
+  expectation: DecimalValue | null; low: DecimalValue | null; high: DecimalValue | null; within_range: boolean | null
+  source: Evidence; drivers: Evidence[]; narrative: string; decision_time: string
+}
 /** `state` is the least-advanced customer's; `gates` merges customers, each violation tagged with customer_id. */
-export interface Period { period: string; state: PeriodState; customers: CustomerPeriod[]; postings: Posting[]; findings: Finding[]; gates: Record<string, GateResult>; flux: Flux[] }
+export interface Period { period: string; state: PeriodState; customers: CustomerPeriod[]; postings: Posting[]; findings: Finding[]; gates: Record<string, GateResult>; flux: Flux[]; analytical_review?: AnalyticalReview | null }
 export interface StepSummary { period: string; states: Record<CustomerId, PeriodState | 'BLOCKED'>; findings: [string, Finding['state'], number][]; log: string[] }
 
 export interface Control {
@@ -45,10 +51,13 @@ export interface Control {
   /** Added after onboarding: show these as learned. */
   learned: boolean; status: 'active' | 'retired' | 'tuned'; mined_at: string
 }
-export interface EscalationOption { id: string; label: string; decision: string }
+/** `recommended` marks the agent's recommendation; choosing another option needs a reason. */
+export interface EscalationOption { id: string; label: string; decision: string; recommended?: boolean }
 export interface Escalation {
   id: string; finding_id: string; to_role: Role; question: string; options: EscalationOption[]
   answer: string | null; answered_by: string | null; answered_at: string | null; became_precedent_id: string | null; created_at: string
+  /** The option id the agent recommends, and why (this year's precedent, last year's handling, or policy). */
+  recommended?: string | null; recommendation_basis?: string | null
   period: string; customer_id: CustomerId; control_id: string; escalation_type: EscalationType | null; exposure: DecimalValue | null
   evidence: Evidence
 }
@@ -59,7 +68,8 @@ export interface AnswerOptions extends RequestOptions {
   reasoning?: string
 }
 /** `settled`: other open cards the new precedent answered at once. */
-export interface AnswerResult { escalation_id: string; finding_id: string; decision: string; journals: string[]; precedent_id: string | null; settled: string[]; escalated_to: string | null }
+/** `overrode`: the recommendation the person turned down, if they did. */
+export interface AnswerResult { escalation_id: string; finding_id: string; decision: string; journals: string[]; precedent_id: string | null; settled: string[]; escalated_to: string | null; overrode?: string | null }
 
 export interface ChainStep { label: 'rule' | 'terms' | 'inputs' | 'knew-at' | 'approved' | 'signed' | 'restated' | 'reversed' | 'precedent' | string; text: string; ids: string[] }
 export interface Chain { entry_id: string; head: string; steps: ChainStep[]; memo: string | null }
@@ -78,11 +88,14 @@ export interface CustomerPackage {
   findings: (Finding & Partial<Pick<Escalation, 'to_role' | 'question' | 'answer' | 'answered_by' | 'answered_at' | 'became_precedent_id'>> & { escalation_id: string | null })[]
   gates: Record<string, GateResult>; reconciliation: Reconciliation[]
 }
-export interface SignoffPackage { period: string; as_of: string; flux: Flux[]; customers: CustomerPackage[] }
+/** `needs_explanation`: the analytical review is outside its range; the reviewer explains before signing. */
+export interface SignoffPackage { period: string; as_of: string; flux: Flux[]; customers: CustomerPackage[]; analytical_review?: AnalyticalReview | null; needs_explanation?: boolean }
 export type ExportFile = 'ledger.csv' | 'trial_balance.csv' | 'reconciliation.csv' | 'gates.csv'
 
 /** Ratios are 0–1. null means no denominator, not 0% (tpa.evaluate.metrics). */
-export interface Metrics { precision: number | null; recall: number | null; escalation_rate: number | null; autonomy: number | null; as_of?: string; live_month?: number; counts?: Record<string, number>; missed?: Evidence[]; false_positives?: Evidence[] }
+/** Whether answers stuck: repeats of situations a person already answered, and how they were handled. */
+export interface JudgmentRecord { repeat_findings: number; settled_by_precedent: number; asked_again: number; asked_again_detail: Evidence[]; precedent_hit_rate: number | null; first_time_questions: number }
+export interface Metrics { precision: number | null; recall: number | null; escalation_rate: number | null; autonomy: number | null; as_of?: string; live_month?: number; counts?: Record<string, number>; missed?: Evidence[]; false_positives?: Evidence[]; judgment?: JudgmentRecord }
 
 export interface RequestOptions { signal?: AbortSignal }
 /** `asOf`: 'month-N', 'YYYY-MM' or an ISO date-time — the books as they stood then. */

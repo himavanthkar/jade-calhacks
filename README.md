@@ -177,6 +177,22 @@ Found by testing on seeds we didn't develop on and with injected scenarios. Each
 | Costco instalments | Released an accrual while its claim sat unapplied | Rule 03: never clear one side and leave the other | Apply the unmatched instalment first, release only the residual |
 | Final audit | Terms were loaded from the generator's answer key, not read | The agent was handed the contracts' terms | `tpa/extract.py` reads every agreement and amendment; one generated agreement (TP-0232) had lost its rate to a planted ambiguous clause and was corrected to state it |
 
+## Frontend
+
+React + Vite in `frontend/` (designed in Figma): period overview, journal entries, verification gates,
+restatement comparison, flux review, the escalation inbox and the interrogation box.
+
+```sh
+make api                        # the backend on :8000; Vite proxies /api to it
+cd frontend && bun install
+VITE_API_MODE=http bun run dev  # against the real API
+bun run dev                     # or replay captured responses (VITE_MOCK_SCENARIO=inbox | moment)
+bun test && bun run build && bun run lint
+```
+
+The mock replays responses captured from the real API (`uv run python scripts/frontend_fixtures.py`
+regenerates them); it computes nothing. For the live demo, run in `http` mode.
+
 ## Live scenarios
 
 Hyphenate may ask for a scenario of their own. `POST /api/scenario` adds source rows to the month the clock

@@ -23,8 +23,7 @@ OUT = ROOT / "frontend" / "src" / "api" / "fixtures"
 
 
 def seed():
-    subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24",
-                    "--load-terms"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "seed.py"), "--seed", "1337", "--months", "24"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
 
 
 c = TestClient(app)

@@ -1,7 +1,7 @@
 # Data
 
 Where every row comes from, what is done to it on the way, and how a teammate gets the same data.
-For what is real and what is simulated, see the table in `README.md`.
+For what is real and what is simulated, see [`docs/proof.md`](docs/proof.md).
 
 ## Getting the data
 

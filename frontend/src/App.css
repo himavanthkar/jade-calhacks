@@ -17,7 +17,7 @@
 .overview{position:relative;isolation:isolate;padding-top:65px;padding-bottom:48px;background:linear-gradient(to bottom,transparent 78%,#f9f4ed 100%)}
 .hero-bars{position:absolute;z-index:-1;pointer-events:none;inset:0 0 auto;height:365px;overflow:hidden;background:linear-gradient(180deg,rgba(248,243,235,.98),rgba(250,246,240,.9) 48%,rgba(252,250,247,.45) 85%,transparent)}
 .hero-bars i{position:absolute;bottom:18px;width:1.333%;opacity:.62;background:linear-gradient(to bottom,rgba(255,255,255,.83),rgba(255,255,255,.66) 62%,transparent)}
-.overview-heading{margin-bottom:24px;min-height:81px}.overview h1{font:800 30px/34.5px 'EB Garamond',Georgia,serif;letter-spacing:-.85px;margin:10px 0 9px}
+.overview-heading{margin-bottom:24px;min-height:81px}.overview h1{font:800 34px/39.1px 'EB Garamond',Georgia,serif;letter-spacing:-.85px;margin:10px 0 9px}
 .overview-heading .eyebrow{font-family:'EB Garamond',Georgia,serif}.heading-actions button{border:0;border-radius:4px;background:#ff7c38;color:white;min-height:34px;padding:7px 14px 7px 9px}
 .finding-banner{border-top:0;border-bottom:1px solid #deded7;padding:18px 0 22px;min-height:112px;gap:23px}
 .finding-copy .eyebrow{color:#72726b}.finding-copy h2{margin-top:12px}.impact{min-width:210px}.impact>strong{font:800 25px/30px 'EB Garamond',Georgia,serif}.impact>small{color:#72726b}
@@ -82,7 +82,7 @@
 /* Shared page-title typography and spacing across workspace screens. */
 .main-shell :is(.overview,.period-page,.controls-page,.interrogation-page,.escalation-page){padding-top:65px}
 .main-shell :is(.overview-heading,.period-heading,.controls-page>header,.interrogation-heading,.escalation-heading) .eyebrow{font:600 7px/10.5px 'EB Garamond',Georgia,serif;letter-spacing:2px;color:#72726b;margin:0}
-.main-shell :is(.overview-heading,.period-heading,.controls-page>header,.interrogation-heading,.escalation-heading) h1{font:800 30px/34.5px 'EB Garamond',Georgia,serif;letter-spacing:-.85px;margin:10px 0 9px}
+.main-shell :is(.overview-heading,.period-heading,.controls-page>header,.interrogation-heading,.escalation-heading) h1{font:800 34px/39.1px 'EB Garamond',Georgia,serif;letter-spacing:-.85px;margin:10px 0 9px}
 .main-shell :is(.overview-heading,.period-heading,.controls-page>header,.interrogation-heading,.escalation-heading) p:not(.eyebrow){font-size:11px;line-height:16.5px;color:#85857c;margin:0}
 @media(max-width:1000px){.main-shell :is(.overview,.period-page,.controls-page,.interrogation-page,.escalation-page){padding-top:45px}}
 @media(max-width:700px){.main-shell :is(.overview,.period-page,.controls-page,.interrogation-page,.escalation-page){padding-top:32px}.main-shell :is(.overview-heading,.period-heading,.controls-page>header,.interrogation-heading,.escalation-heading) h1{font-size:28px}}
@@ -98,3 +98,10 @@
   .sidebar .brand{height:61px;min-height:61px;padding:0;align-items:center}
   .topbar{padding-inline:30px}
 }
+
+/* Consistent sidebar selection without an outer focus ring. */
+.sidebar .nav-item:focus{outline:none;box-shadow:none}
+.sidebar .nav-item:focus-visible{outline:2px solid #6f1f1b;outline-offset:-2px}
+.sidebar .nav-item.active{background:#ecdcd0!important;color:#6f1f1b!important;border-left-color:transparent;border-radius:4px}
+
+.sidebar .nav-icon{display:block;width:15px;height:15px;flex-shrink:0;background-color:currentColor;mask-repeat:no-repeat;mask-position:center;mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:contain}

@@ -1,6 +1,6 @@
-# JADE
+# JADE — Judgement And Decision Engine
 
-![JADE: the trade promotion accountant that reopens its own books. Shipments and deduction stubs feed an open ledger, and an amendment letter pulls six closed months, February to July, back open to be restated.](docs/images/hero.jpg)
+![JADE, the Judgement And Decision Engine: the trade promotion accountant that reopens its own books. Shipments and deduction stubs feed an open ledger, and an amendment letter pulls six closed months, February to July, back open to be restated.](docs/images/hero.jpg)
 
 <p align="center">
   <b>Cal Hacks 13.0</b> &nbsp;·&nbsp; <b>Hyphenate track</b> &nbsp;·&nbsp; Autonomous trade promotion accounting for General Mills

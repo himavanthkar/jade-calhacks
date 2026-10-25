@@ -19,3 +19,8 @@ docs/pitch-screenshots/
 
 # close reports printed by scripts/close_report.py
 reports/
+
+# demo videos are uploaded to Devpost, never committed
+*.mp4
+*.mov
+/video/

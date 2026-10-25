@@ -10,7 +10,7 @@ uv sync
 make seed               # 24 months of books, fingerprint 731ff15914136d8f
 make players            # run the live year with the played humans, print the scores
 make api                # the HTTP API on :8000 for the UI
-make test               # 129 tests, against TEST_DATABASE_URL only
+make test               # 148 tests, against TEST_DATABASE_URL only
 ```
 
 | Command | What it shows |

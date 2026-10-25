@@ -1,6 +1,6 @@
 # JADE: pitch
 
-Cal Hacks 13.0 · Hyphenate track · demo video: `jade-demo.mp4` (2:23)
+Cal Hacks 13.0 · Hyphenate track · demo video on Devpost
 
 ## Tagline
 
@@ -49,7 +49,7 @@ number, and a harness that scores the agent against ground truth.
   that must pass silently, scored by `tpa/evaluate.py`.
 - **Verification gates block, they don't warn:** debits = credits, cleared ≤ accrued, claims inside the window,
   reversals mirror, no stale accruals.
-- **129 backend tests**; the model never computes a number and never approves.
+- **148 backend tests**; the model never computes a number and never approves.
 
 ### Before and after (measured, month 12)
 

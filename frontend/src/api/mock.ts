@@ -3,7 +3,7 @@ import inboxData from './fixtures/inbox.json'
 import momentData from './fixtures/moment.json'
 import type {
   AnswerResult, AskResponse, Clock, Control, CustomerId, Escalation, Evidence, Explanation, Metrics, Period,
-  PeriodState, RequestOptions, SignoffPackage, StepSummary, TradePromotionApi,
+  PeriodState, RequestOptions, ScenarioExample, SignoffPackage, StepSummary, TradePromotionApi,
 } from './types'
 
 /**
@@ -34,6 +34,17 @@ function nextPeriod(period: string) {
   const [y, m] = period.split('-').map(Number)
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
 }
+
+/** The same shapes tpa.scenario.examples returns, for browsing in the mock; injecting needs the API. */
+const EXAMPLES = (period: string): ScenarioExample[] => [
+  { title: 'Walmart short-pays a scan-back claim with no backup', kind: 'deduction',
+    payload: { customer_id: 'WMT', program_id: 'TP-0214', amount: '48000.00', claimed_period: period, day: 5 } },
+  { title: 'Walmart claims last month at $4.50/case', kind: 'deduction',
+    payload: { customer_id: 'WMT', program_id: 'TP-0214', amount: '60000.00', claimed_period: period, claimed_rate: '4.50', day: 6,
+      backup: { scan_units: 13333, scan_rate: '4.50' } } },
+  { title: 'TP-0214 renegotiated down to $3.60/case, effective three months ago', kind: 'amendment',
+    payload: { program_id: 'TP-0214', new_rate: '3.60', effective_date: `${period}-01`, day: 12 } },
+]
 
 export function createMockApi(scenario: MockScenario = 'inbox'): TradePromotionApi {
   const periods = new Map<string, Period>()
@@ -158,6 +169,13 @@ export function createMockApi(scenario: MockScenario = 'inbox'): TradePromotionA
     getMetrics: (period, options) => {
       const m = metrics.get(period) ?? metrics.get(period.replace(/^2026-0?/, 'month-'))
       return m ? finish(m, options) : Promise.reject(new ApiError(404, `The mock has metrics for ${[...metrics.keys()].join(', ') || 'no month yet'}.`))
+    },
+    // Scenarios write source rows the engine then processes; there is no engine here to meet them.
+    getScenarioExamples: options => finish(EXAMPLES(clock.current_period), options),
+    getInjections: options => finish([], options),
+    injectScenario: async (_kind, _payload, options) => {
+      options?.signal?.throwIfAborted()
+      throw new ApiError(409, 'Live scenarios need the engine: run `make api` and set VITE_API_MODE=http.')
     },
   }
 }

@@ -97,6 +97,16 @@ export type ExportFile = 'ledger.csv' | 'trial_balance.csv' | 'reconciliation.cs
 export interface JudgmentRecord { repeat_findings: number; settled_by_precedent: number; asked_again: number; asked_again_detail: Evidence[]; precedent_hit_rate: number | null; first_time_questions: number }
 export interface Metrics { precision: number | null; recall: number | null; escalation_rate: number | null; autonomy: number | null; as_of?: string; live_month?: number; counts?: Record<string, number>; missed?: Evidence[]; false_positives?: Evidence[]; judgment?: JudgmentRecord }
 
+/** The judge's own scenario (tpa/scenario.py): rows land in the month the clock is on; the engine meets them on the next step. */
+export type ScenarioKind = 'deduction' | 'duplicate' | 'backup' | 'return' | 'amendment' | 'approval_attempt' | 'handoff'
+export interface ScenarioExample { title: string; kind: ScenarioKind; payload: Evidence }
+export interface Injection { id: string; kind: ScenarioKind; payload: Evidence; created_ids: string[]; period: string; sim_date: string; injected_by: string | null }
+/** `step` and `findings` only when the month was run with the injection: findings are the ones whose evidence names a created id. */
+export interface InjectResult { id: string; kind: ScenarioKind; period: string; lands_on: string; created_ids: string[]; step?: StepSummary; findings?: Finding[] }
+export interface InjectOptions extends RequestOptions { step?: boolean; injectedBy?: string }
+/** The people (tpa/seed/fiction.py ACTORS); the API checks who may answer what. */
+export interface Actor { id: string; name: string; role: Role; customer_id: CustomerId | null }
+
 export interface RequestOptions { signal?: AbortSignal }
 /** `asOf`: 'month-N', 'YYYY-MM' or an ISO date-time — the books as they stood then. */
 export interface AsOfOptions extends RequestOptions { asOf?: string }
@@ -119,4 +129,8 @@ export interface TradePromotionApi {
   explainEntry(id: string, options?: RequestOptions): Promise<Explanation>
   ask(question: string, options?: RequestOptions): Promise<AskResponse>
   getMetrics(period: string, options?: RequestOptions): Promise<Metrics>
+  getScenarioExamples(options?: RequestOptions): Promise<ScenarioExample[]>
+  getInjections(options?: RequestOptions): Promise<Injection[]>
+  /** With `step`, also runs the month so the scenario plays out at once. */
+  injectScenario(kind: ScenarioKind, payload: Evidence, options?: InjectOptions): Promise<InjectResult>
 }

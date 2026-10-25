@@ -11,6 +11,11 @@ export class ApiError extends Error {
     this.details = details
   }
 }
+/** The API's `kind` on a refusal: 'segregation_of_duties' (403) or 'gate_failure' (409). */
+export function errorKind(error: unknown): string | undefined {
+  const d = error instanceof ApiError ? error.details : undefined
+  return typeof d === 'object' && d && 'kind' in d ? String((d as { kind: unknown }).kind) : undefined
+}
 export function validatePeriod(period: string) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error('Period must use YYYY-MM format.')
   return period
@@ -60,5 +65,9 @@ export function createHttpApi(baseUrl = '/api', fetcher: typeof fetch = fetch): 
     explainEntry: (id, options) => request(`/explain/${encodeURIComponent(id)}`, options),
     ask: (question, options) => request('/ask', options, { question }, true),
     getMetrics: async (period, options) => adaptMetrics(await request<Metrics>(`/metrics?as_of=${encodeURIComponent(period)}`, options)),
+    getScenarioExamples: options => request('/scenario/examples', options),
+    getInjections: options => request('/scenario', options),
+    injectScenario: (kind, payload, options) => request('/scenario', options,
+      { kind, payload, step: options?.step ?? false, injected_by: options?.injectedBy }, true),
   }
 }

@@ -64,3 +64,18 @@ def test_a_tight_review_tolerance_would_have_cried_wolf():
     """The largest real year-on-year drift is about 21%: a 15% tolerance flags audited books."""
     res = backtest.run(tolerance=Decimal("0.15"))
     assert res["analytical_review"]["false_alarms"] >= 1
+
+
+def test_sixteen_years_of_the_balance_sheet_line_never_moved_more_than_22_percent():
+    h = backtest.history()
+    assert [y["fiscal_year"] for y in h["years"]] == list(range(2011, 2027))
+    assert h["largest_drift"] == Decimal("0.2206")                  # FY2022, down
+    assert all(abs(y["drift"]) <= abs(h["largest_drift"]) for y in h["years"][1:])
+
+
+def test_the_backtest_endpoint_needs_no_database():
+    from fastapi.testclient import TestClient
+    from tpa.api import app
+    body = TestClient(app).get("/api/backtest").json()
+    assert body["best"] == "naive" and len(body["history"]["years"]) == 16
+    assert [t["net_sales_pts"] for t in body["trade_timing"]] == [-3, -2, 1]

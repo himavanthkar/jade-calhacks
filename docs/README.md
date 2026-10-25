@@ -8,6 +8,7 @@
 | [Proof](proof.md) | what is real and what is simulated, precision and recall, what it got wrong |
 | [API](api.md) | every endpoint, and injecting live scenarios |
 | [Integrations](integrations.md) | the Gmail deductions inbox, and the live email demo |
+| [Presenting the data](presenting.md) | the Integrations map, the Backtest page, and what each chart says |
 | [Benchmarks](benchmarks.md) | the simulation's statistics beside sourced industry and peer figures |
 | [Data](../DATA.md) | where every row comes from, and how to get the same data |
 | [Build spec](../spec.md) | the original design |

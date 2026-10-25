@@ -12,6 +12,8 @@
     GET  /api/explain/{entry_id}       → the evidence chain
     POST /api/ask                      → { question } the interrogation box
     GET  /api/metrics?as_of={period}   → { precision, recall, escalation_rate, autonomy }
+    GET  /api/metrics/series           → the same, for every live month run so far
+    GET  /api/backtest                 → the estimate and the close's controls on General Mills' real 10-Ks
     GET  /api/scenario/examples        → ready-made scenarios against the books as they stand
     POST /api/scenario                 → { kind, payload, step? } add source rows to the month the clock is on
     GET  /api/scenario                 → everything injected so far
@@ -40,7 +42,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from tpa import autopilot, explain, export, judgment, mail, players, scenario
+from tpa import autopilot, backtest, explain, export, judgment, mail, players, scenario
 from tpa.package import package as signoff_package
 from tpa.asof import sim_clock
 from tpa.constants import live_month, period_end, period_start
@@ -50,6 +52,8 @@ from tpa.evaluate import metrics as evaluate_metrics, resolve_period
 from tpa.gates import GateFailure, sign_period
 from tpa.rows import all_rows, one_row
 from tpa.seed.calibration import CIK, FILINGS
+from tpa.filings import TRADE_TIMING
+from tpa.policy import ANALYTICAL_REVIEW_TOLERANCE
 from tpa.sod import SegregationOfDutiesError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -306,6 +310,27 @@ def metrics(as_of: str, conn=Depends(db)):
         raise HTTPException(404, "no answer key: run make seed")
     with conn.cursor() as cur:
         return out(evaluate_metrics(cur, json.loads(ANSWER_KEY.read_text()), as_of))
+
+
+@app.get("/api/metrics/series")
+def metrics_series(conn=Depends(db)):
+    """Month by month through the last month run: does the system ask less as answers accumulate?"""
+    if not ANSWER_KEY.exists():
+        raise HTTPException(404, "no answer key: run make seed")
+    key = json.loads(ANSWER_KEY.read_text())
+    with conn.cursor() as cur:
+        period, _ = sim_clock(cur)
+        ran = min(live_month(period) - 1, live_month(last_period(cur)))
+        return out([evaluate_metrics(cur, key, f"month-{m}") for m in range(1, ran + 1)])
+
+
+@app.get("/api/backtest")
+def get_backtest():
+    """Real data only: no database. Company-level figures, so it scores the estimate and the controls,
+    never deduction matching."""
+    return out({**backtest.run(), "history": backtest.history(),
+                "trade_timing": [vars(t) for t in TRADE_TIMING],
+                "policy_tolerance": ANALYTICAL_REVIEW_TOLERANCE})
 
 
 class Injection(BaseModel):

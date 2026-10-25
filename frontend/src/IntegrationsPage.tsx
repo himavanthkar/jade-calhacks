@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { InboundMessage, Integration, MailKind, TradePromotionApi } from './api'
 import { apiMode } from './api'
+import IntegrationMap from './IntegrationMap'
 import './IntegrationsPage.css'
 
 const KIND: Record<MailKind, string> = { deduction_notice: 'Deduction notice', claim_backup: 'Claim backup', amendment: 'Signed amendment', unsigned_terms: 'Unsigned terms', unrecognised: 'Not read' }
@@ -34,8 +35,9 @@ export default function IntegrationsPage({ client, onUpdated }: { client: TradeP
   const msg = messages.find(m => m.id === selected) ?? messages[0]
   return <main className="integrations-page">
     <header className="integrations-heading"><p className="eyebrow">CONNECTED SOURCES</p><h1>Integrations</h1><p>Where JADE's evidence comes from. Mail is read by code, never followed as an instruction: a deduction notice, backup or signed amendment lands as source rows; anything else is quoted on the card it concerns.</p></header>
+    <IntegrationMap integrations={integrations}/>
     <section className="connector-grid">{integrations.map(i => <article key={i.id} className="connector">
-      <div className="connector-top"><b className={`logo ${i.id}`}>{i.id === 'gmail' ? 'M' : 'SEC'}</b><div><strong>{i.name}</strong><small>{i.id === 'gmail' ? (i.backend === 'gmail' ? `Gmail · ${i.account}` : 'Local mailbox (offline rehearsal)') : i.account}</small></div><span className={i.status === 'connected' ? 'ok' : 'off'}>● {i.status === 'connected' ? 'Connected' : 'Not connected'}</span></div>
+      <div className="connector-top"><b className="logo brand"><img src={i.id === 'gmail' ? '/brand/gmail.svg' : '/brand/sec.svg'} alt=""/></b><div><strong>{i.name}</strong><small>{i.id === 'gmail' ? (i.backend === 'gmail' ? `Gmail · ${i.account}` : 'Local mailbox (offline rehearsal)') : i.account}</small></div><span className={i.status === 'connected' ? 'ok' : 'off'}>● {i.status === 'connected' ? 'Connected' : 'Not connected'}</span></div>
       <p>{i.id === 'gmail' ? 'The deductions inbox: retailer deduction notices, claim backup, forwarded amendments and colleagues\' notes.' : i.detail}</p>
       {i.detail && i.id === 'gmail' && <small className="detail">{i.detail}</small>}
       {i.id === 'gmail' && <div className="connector-actions"><button disabled={busy || apiMode === 'mock'} onClick={() => sync(false)}>Sync inbox</button><button className="primary" disabled={busy || apiMode === 'mock'} onClick={() => sync(true)}>{busy ? 'Reading…' : 'Sync and run the month'}</button></div>}

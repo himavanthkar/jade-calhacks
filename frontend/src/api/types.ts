@@ -125,6 +125,18 @@ export interface InjectOptions extends RequestOptions { step?: boolean; injected
 /** The people (tpa/seed/fiction.py ACTORS); the API checks who may answer what. */
 export interface Actor { id: string; name: string; role: Role; customer_id: CustomerId | null }
 
+/** GET /api/backtest (tpa.backtest): General Mills' real 10-K figures, no database. */
+export interface BacktestClose { fiscal_year: number; period_end: string; filed: string; known_filings: number[]; actual_musd: number; net_sales_musd: DecimalValue; estimates_musd: Record<string, DecimalValue>; ratio: DecimalValue; review_drift: DecimalValue; review_flagged: boolean; source: string }
+export interface BacktestScore { mae_musd: DecimalValue; mape: DecimalValue; bias: DecimalValue; worst: DecimalValue }
+export interface HistoryYear { fiscal_year: number; liability_musd: DecimalValue; net_sales_musd: DecimalValue; ratio: DecimalValue; accession: string; drift?: DecimalValue; naive_error?: DecimalValue }
+export interface TradeTiming { quarter: string; released: string; accession: string; net_sales_pts: number; operating_profit_pts: number | null; quote: string }
+export interface Backtest {
+  closes: BacktestClose[]; scores: Record<string, BacktestScore>; best: string
+  analytical_review: { tolerance: DecimalValue; false_alarms: number; largest_drift: DecimalValue }
+  restatements: Evidence[]; history: { years: HistoryYear[]; largest_drift: DecimalValue; quiet_tolerance: DecimalValue; mean_abs_drift: DecimalValue }
+  trade_timing: TradeTiming[]; policy_tolerance: DecimalValue
+}
+
 export interface RequestOptions { signal?: AbortSignal }
 /** `asOf`: 'month-N', 'YYYY-MM' or an ISO date-time — the books as they stood then. */
 export interface AsOfOptions extends RequestOptions { asOf?: string }
@@ -147,6 +159,9 @@ export interface TradePromotionApi {
   explainEntry(id: string, options?: RequestOptions): Promise<Explanation>
   ask(question: string, options?: RequestOptions): Promise<AskResponse>
   getMetrics(period: string, options?: RequestOptions): Promise<Metrics>
+  getBacktest(options?: RequestOptions): Promise<Backtest>
+  /** Metrics for every live month run so far. */
+  getMetricsSeries(options?: RequestOptions): Promise<Metrics[]>
   getIntegrations(options?: RequestOptions): Promise<Integration[]>
   getInbox(options?: RequestOptions): Promise<InboundMessage[]>
   /** Read new mail into the month the clock is on; `step` also runs the month. */

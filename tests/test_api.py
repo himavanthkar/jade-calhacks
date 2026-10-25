@@ -116,3 +116,18 @@ def test_the_export_carries_excel_checks(api):
     assert total.startswith("TOTAL,") and "=SUM(" in total
     assert check.startswith("CHECK,=") and check.endswith(",0.00")
     assert api.get("/api/period/2026-01/export/secrets.csv").status_code == 404
+
+
+def test_a_decision_posts_into_the_period_still_being_closed(api, conn):
+    """Answered during February, a January card's postings are January's while January is unsigned."""
+    from datetime import datetime
+
+    from tpa.execute import closing_period
+    period = api.get("/api/period/2026-01").json()
+    open_one = next(c["customer_id"] for c in period["customers"] if c["state"] == "ESCALATED")
+    clean = next(c["customer_id"] for c in period["customers"] if c["state"] == "REVIEWED")
+    assert api.post("/api/period/2026-01/sign", json={"customer_id": clean}).status_code == 200
+    feb = datetime(2026, 2, 1, 7, 0)
+    with conn.cursor() as cur:
+        assert closing_period(cur, {"period": "2026-01", "customer_id": open_one}, feb) == "2026-01"
+        assert closing_period(cur, {"period": "2026-01", "customer_id": clean}, feb) == "2026-02"

@@ -392,6 +392,22 @@ def _deductions_of(cur: psycopg.Cursor, f: dict) -> list[dict]:
     return all_rows(cur, "SELECT * FROM deductions WHERE id = ANY(%s) ORDER BY available_at, id", (ids,)) if ids else []
 
 
+UNSIGNED = ("OPEN", "ACCRUED", "CONTROLLED", "ESCALATED", "REVIEWED")
+
+
+def closing_period(cur: psycopg.Cursor, f: dict, at: datetime) -> str:
+    """Where a decision on a finding posts. While the finding's period is still being closed (not yet
+    signed), it posts there: a release the close reviewer approves during October's close is October's
+    adjustment, so October's gates see it. Once that period is signed it posts to the period `at` is in."""
+    current = period_of(at.date())
+    if f["period"] < current:
+        row = one_row(cur, "SELECT state FROM periods WHERE period = %s AND customer_id = %s",
+                      (f["period"], f["customer_id"]))
+        if row and row["state"] in UNSIGNED:
+            return f["period"]
+    return current
+
+
 def execute(cur: psycopg.Cursor, finding_id: str, decision: str, decided_by: str, at: datetime, *,
             period: str | None = None, note: str = "") -> list[str]:
     """Carry out a decision on a finding and resolve it. Returns the journals and follow-up findings.
@@ -417,7 +433,7 @@ def execute(cur: psycopg.Cursor, finding_id: str, decision: str, decided_by: str
         raise ExecutionError(f"unknown decision {decision!r}")
     f = finding(cur, finding_id)
     ev = f["evidence"] or {}
-    period = period or period_of(at.date())
+    period = period or closing_period(cur, f, at)
     journals: list[str] = []
     approver = None if decided_by == "agent" else decided_by
     tolerance = mined_tolerance(cur)

@@ -90,7 +90,7 @@ export interface CustomerPackage {
 }
 /** `needs_explanation`: the analytical review is outside its range; the reviewer explains before signing. */
 export interface SignoffPackage { period: string; as_of: string; flux: Flux[]; customers: CustomerPackage[]; analytical_review?: AnalyticalReview | null; needs_explanation?: boolean }
-export type ExportFile = 'close_report.html' | 'ledger.csv' | 'trial_balance.csv' | 'reconciliation.csv' | 'gates.csv'
+export type ExportFile = 'close_report.html' | 'ledger.csv' | 'trial_balance.csv' | 'reconciliation.csv' | 'gates.csv' | 'close_package.xlsx' | 'quickbooks_online.csv' | 'flux_report.pdf'
 
 /** Ratios are 0–1. null means no denominator, not 0% (tpa.evaluate.metrics). */
 /** Whether answers stuck: repeats of situations a person already answered, and how they were handled. */

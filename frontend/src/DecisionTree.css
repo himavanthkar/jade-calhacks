@@ -15,3 +15,12 @@
 .dt-result p{margin:0 0 6px}
 .dt-outcome span{font-weight:700}.dt-result.dt-done .dt-outcome span{color:#21654a}.dt-result.dt-open .dt-outcome span{color:#9b3b22}
 .dt-note{font-size:9px;color:#85857e;margin:2px 0 0}
+.tree-node{cursor:pointer;outline:none}
+.dt-hit{fill:transparent;stroke:none}
+.tree-node:hover .dt-hit{fill:#ebe2d5}
+.tree-node:focus-visible .dt-hit{stroke:#5b241d;stroke-width:1.5;stroke-dasharray:3 3}
+.tree-node.selected .dt-hit{fill:#fbe6dc;stroke:#E86F31;stroke-width:1.5}
+.tree-node.selected .dt-square{fill:#E86F31}
+.tree-node.selected .dt-leaf{stroke:#E86F31;stroke-width:2.5}
+.tree-node.selected .dt-nlabel,.tree-node.selected .dt-ltext{fill:#9b3b22;font-weight:700}
+.dt-explain b{color:#5b241d}.dt-asked{color:#6f6c64}

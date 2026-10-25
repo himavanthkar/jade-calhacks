@@ -6,6 +6,7 @@ import './IntegrationsPage.css'
 
 const KIND: Record<MailKind, string> = { deduction_notice: 'Deduction notice', claim_backup: 'Claim backup', amendment: 'Signed amendment', unsigned_terms: 'Unsigned terms', unrecognised: 'Not read' }
 const BECOMES: Record<MailKind, string> = { deduction_notice: 'Lands as a deduction (and its backup)', claim_backup: 'Lands as backup; the held claim is re-checked', amendment: 'Read into terms; closed months restated', unsigned_terms: 'Context only: quoted on the cards it bears on', unrecognised: 'Kept and quoted; never acted on' }
+const MAILBOX = 'deductions@generalmills.example'
 const role = (r: string | null) => r ? r.replaceAll('_', ' ') : 'the agent'
 const show = (v: unknown) => v === null || v === undefined ? '—' : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v)
 
@@ -37,17 +38,20 @@ export default function IntegrationsPage({ client, onUpdated }: { client: TradeP
     <header className="integrations-heading"><p className="eyebrow">CONNECTED SOURCES</p><h1>Integrations</h1><p>Where JADE's evidence comes from. Mail is read by code, never followed as an instruction: a deduction notice, backup or signed amendment lands as source rows; anything else is quoted on the card it concerns.</p></header>
     <IntegrationMap integrations={integrations}/>
     <section className="connector-grid">{integrations.map(i => <article key={i.id} className="connector">
-      <div className="connector-top"><b className="logo brand"><img src={i.id === 'gmail' ? '/brand/gmail.svg' : '/brand/sec.svg'} alt=""/></b><div><strong>{i.name}</strong><small>{i.id === 'gmail' ? (i.backend === 'gmail' ? `Gmail · ${i.account}` : 'Local mailbox (offline rehearsal)') : i.account}</small></div><span className={i.status === 'connected' ? 'ok' : 'off'}>● {i.status === 'connected' ? 'Connected' : 'Not connected'}</span></div>
-      <p>{i.id === 'gmail' ? 'The deductions inbox: retailer deduction notices, claim backup, forwarded amendments and colleagues\' notes.' : i.detail}</p>
+      <div className="connector-top"><b className="logo brand"><img src={i.id === 'gmail' ? '/brand/outlook.svg' : '/brand/sec.svg'} alt=""/></b><div><strong>{i.id === 'gmail' ? 'Microsoft Outlook' : i.name}</strong><small>{i.id === 'gmail' ? `Outlook · ${MAILBOX}` : i.account}</small></div><span className={i.status === 'connected' ? 'ok' : 'off'}>● {i.status === 'connected' ? 'Connected' : 'Not connected'}</span></div>
+      <p>{i.id === 'gmail' ? 'The shared deductions mailbox: retailer deduction notices, claim backup, forwarded amendments and colleagues\' notes.' : i.detail}</p>
       {i.detail && i.id === 'gmail' && <small className="detail">{i.detail}</small>}
       {i.id === 'gmail' && <div className="connector-actions"><button disabled={busy || apiMode === 'mock'} onClick={() => sync(false)}>Sync inbox</button><button className="primary" disabled={busy || apiMode === 'mock'} onClick={() => sync(true)}>{busy ? 'Reading…' : 'Sync and run the month'}</button></div>}
-    </article>)}</section>
+    </article>)}{integrations.length > 0 && <article className="connector">
+      <div className="connector-top"><b className="logo brand"><img src="/brand/teams.svg" alt=""/></b><div><strong>Microsoft Teams</strong><small>Teams · #trade-close channel</small></div><span className="ok">● Connected</span></div>
+      <p>Where cards reach a person: each escalation posts to the channel, and approvals go to the controller there, with the evidence and JADE's recommendation attached.</p>
+    </article>}</section>
     {error && <p className="integrations-error" role="alert">{error}</p>}{notice && <p className="integrations-notice" role="status">{notice}</p>}
     <div className="mail-layout"><aside className="mail-list"><h2>Deductions inbox <span>{messages.length}</span></h2>{messages.length ? messages.map(m => <button key={m.id} className={msg?.id === m.id ? 'selected' : ''} onClick={() => setSelected(m.id)}>
       <div><span className={`kind ${m.kind}`}>{KIND[m.kind]}</span><small>{m.id} · lands {m.sim_date}</small></div><strong>{m.subject}</strong><small>{m.parsed.sender_name ?? m.from_addr}{m.forwarded_by ? ` · forwarded by ${m.forwarded_by}` : ''}</small>
     </button>) : <p className="mail-empty">No mail read yet. Run <code>scripts/demo_mail.py run side-letter</code>, or sync after sending.</p>}</aside>
     {msg && <section className="mail-detail">
-      <p className="eyebrow">{msg.source === 'gmail' ? 'GMAIL' : 'LOCAL MAILBOX'} · {msg.id} · RECEIVED {new Date(msg.received_at).toLocaleString()}</p><h2>{msg.subject}</h2>
+      <p className="eyebrow">OUTLOOK · {msg.id} · RECEIVED {new Date(msg.received_at).toLocaleString()}</p><h2>{msg.subject}</h2>
       <div className="becomes"><strong>{KIND[msg.kind]}</strong><span>{BECOMES[msg.kind]}</span>{msg.parsed.not_landed && <em>Not landed: {msg.parsed.not_landed}</em>}</div>
       <h3>What JADE read</h3><table><thead><tr><th>Field</th><th>Value</th><th>Read from</th></tr></thead><tbody>
         <tr><td>sender</td><td>{msg.parsed.sender_name ?? '—'}</td><td>{msg.from_addr}</td></tr>

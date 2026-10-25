@@ -20,6 +20,8 @@ bun test
 - `src/api/mock.ts`: replays responses captured from the real API, so the mock and the backend can't drift
 - `src/api/fixtures/`: those captures; regenerate with `uv run python scripts/frontend_fixtures.py` from the repo root
 - `src/api/index.ts`: mode selection; import `api` from here in screens
+- `src/ErrorNotice.tsx`: every screen's error; reads `errorKind` so the SoD block (403) and a gate failure (409) render as refusals, not network errors
+- `src/ScenarioPanel.tsx`: **Live Scenario**, the judges' input (`/api/scenario`); browsing works in mock, injecting needs `VITE_API_MODE=http`
 
 Mock scenarios (`VITE_MOCK_SCENARIO`): `inbox` steps January and February with every card waiting for a person;
 `moment` opens at month 8 after the AM-02 restatement, with February's two answers and the interrogation chain.

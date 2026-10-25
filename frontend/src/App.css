@@ -43,3 +43,11 @@
 .sidebar-bottom p{font-size:10px;line-height:14px}
 .sidebar-bottom>span{font-size:13px;line-height:15px}
 @media(min-width:701px) and (max-width:1000px){.sidebar{width:205px;flex-basis:205px}}
+
+.step-button:disabled{opacity:.55;cursor:not-allowed}
+.step-result{padding:0 30px}
+.step-result>p{background:#eef5f0;color:#21654a;padding:12px 15px;margin:16px 0 0;font-size:11px;line-height:1.6}
+.step-result>p button{margin-left:8px;font-size:10px}
+@media(max-width:700px){.step-result{padding:0 16px}}
+.month-track .future span{background:white;color:#8c8c83;border:1px solid #d5d8cf}
+.impact button+button{margin-top:6px}

@@ -22,6 +22,7 @@ from tpa.cycle import last_period
 from tpa.rows import all_rows, one_row
 
 KINDS = ("deduction", "duplicate", "backup", "return", "amendment", "approval_attempt", "handoff")
+NAMES = {"WMT": "Walmart", "COST": "Costco", "KR": "Kroger"}
 REASON_FOR = {"scan_back": "SB-SUPERCENTER", "display": "DISPLAY", "mdf": "MDF"}
 
 
@@ -235,17 +236,17 @@ def examples(cur: psycopg.Cursor) -> list[dict]:
     out = [{"title": "Walmart short-pays a scan-back claim with no backup", "kind": "deduction",
             "payload": {"customer_id": "WMT", "program_id": "TP-0214", "amount": "48000.00", "claimed_period": prior,
                         "day": 5}},
-           {"title": "Walmart claims last month at $4.50/case", "kind": "deduction",
+           {"title": "Walmart claims last month at $4.50 a case", "kind": "deduction",
             "payload": {"customer_id": "WMT", "program_id": "TP-0214", "amount": "60000.00", "claimed_period": prior,
                         "claimed_rate": "4.50", "day": 6,
                         "backup": {"scan_units": 13_333, "scan_rate": "4.50"}}}]
     latest = one_row(cur, """SELECT id, customer_id FROM deductions WHERE available_at < %s AND program_id IS NOT NULL
                              ORDER BY available_at DESC, id DESC LIMIT 1""", (period_start(period),))
     if latest:
-        out.append({"title": f"{latest['customer_id']} takes {latest['id']} a second time", "kind": "duplicate",
+        out.append({"title": f"{NAMES[latest['customer_id']]} takes the same deduction ({latest['id']}) twice", "kind": "duplicate",
                     "payload": {"deduction_id": latest["id"], "day": 8}})
         lead = {"WMT": "sales.walmart", "COST": "sales.costco", "KR": "sales.kroger"}[latest["customer_id"]]
-        out.append({"title": f"The {latest['customer_id']} sales lead approves {latest['id']} himself",
+        out.append({"title": f"The {NAMES[latest['customer_id']]} sales lead approves his own deal ({latest['id']})",
                     "kind": "approval_attempt",
                     "payload": {"actor_id": lead, "target_type": "deduction", "target_id": latest["id"], "day": 9}})
     ship = one_row(cur, """SELECT id, cases FROM shipments WHERE program_id = 'TP-0214' AND period = %s
@@ -267,7 +268,7 @@ def examples(cur: psycopg.Cursor) -> list[dict]:
                                     "proposed_program_id": fund["program_id"], "proposed_decision": "clear",
                                     "done": f"Matched it to {fund['program_id']}'s {held['claimed_period']} instalment.",
                                     "left_to_do": "Didn't get to clearing it. Out until Monday.", "day": 4}})
-    out.append({"title": "TP-0214 renegotiated down to $3.60/case, effective three months ago", "kind": "amendment",
+    out.append({"title": "Walmart's Cheerios rate is cut to $3.60 a case, backdated three months", "kind": "amendment",
                 "payload": {"program_id": "TP-0214", "new_rate": "3.60",
                             "effective_date": period_start(add_months(period, -3)).isoformat(), "day": 12}})
     return out

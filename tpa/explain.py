@@ -142,11 +142,11 @@ def decision(cur: psycopg.Cursor, finding_id: str) -> dict | None:
     ev = f["evidence"] or {}
     head = (f"{f['id']} · {f['period']} · {customer['name'] if customer else f['customer_id']} · "
             f"{control['name'] if control else f['control_id']}" + (f" · {money(abs(f['amount']))}" if f["amount"] else ""))
-    rule = f"{f['control_id']}: {control['name']}" if control else f["control_id"]
+    rule = f"The check: {control['name'].lower()}" if control else f["control_id"]
     if control:
         rule += f", owned by the {control['owner_role'].replace('_', ' ')}"
         if control["precedent_ids"]:
-            rule += f", mined from {len(control['precedent_ids'])} decision(s) last year"
+            rule += f", learned from {len(control['precedent_ids'])} of last year's decisions"
     ids = sorted({v for v in ID.findall(json.dumps(ev, default=str))} - {f["id"]})
     steps = [_step("rule", rule, [f["control_id"]]),
              _step("inputs", str(ev.get("summary") or "the rows in its evidence"), ids[:6]),
@@ -187,12 +187,12 @@ def held(cur: psycopg.Cursor, ded_id: str) -> dict | None:
                 "steps": [_step("inputs", f"{ded_id} lands {d['available_at']}; the engine meets it when that month runs")]}
     source = (f"cites {cited['program_id']}, which is not a program on file" if cited and cited["program_id"] and not d["program_id"]
               else f"reason code {d['reason_code']}, no program cited" if not d["program_id"] else f"program {d['program_id']}")
-    steps = [_step("rule", "Record every short payment; clear only what an agreement supports (rules 3, 4 and 8)"),
+    steps = [_step("rule", "Record every short payment; pay out only what an agreement supports"),
              _step("inputs", f"{ded_id} for {money(d['amount'])}, {source}", [ded_id, cited and cited["id"]]),
              _step("knew-at", f"{pending['decision_time']:%Y-%m-%d %H:%M}"),
-             _step("approved", f"recorded by {pending['journal_id']} into {Account.DEDUCTIONS_PENDING}: the receivable stays "
-                               "open; nothing is cleared, written off or reduced from revenue until it is matched. At each "
-                               "close the stale-accrual check pairs held deductions with open accruals",
+             _step("approved", f"recorded by {pending['journal_id']} as pending: the customer still owes the money, and "
+                               "nothing is paid out, written off or taken from revenue until it is matched to a promotion. "
+                               "At each close JADE looks for a promotion it belongs to",
                    [pending["journal_id"]])]
     return {"entry_id": ded_id, "head": head, "steps": steps, "memo": "held unmatched" if not d["program_id"] else "held"}
 

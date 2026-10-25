@@ -120,7 +120,7 @@ export type ScenarioKind = 'deduction' | 'duplicate' | 'backup' | 'return' | 'am
 export interface ScenarioExample { title: string; kind: ScenarioKind; payload: Evidence }
 export interface Injection { id: string; kind: ScenarioKind; payload: Evidence; created_ids: string[]; period: string; sim_date: string; injected_by: string | null }
 /** `step` and `findings` only when the month was run with the injection: findings are the ones whose evidence names a created id. */
-export interface InjectResult { id: string; kind: ScenarioKind; period: string; lands_on: string; created_ids: string[]; step?: StepSummary; findings?: Finding[] }
+export interface InjectResult { id: string; kind: ScenarioKind; period: string; lands_on: string; created_ids: string[]; note?: string; step?: StepSummary; findings?: (Finding & { control_name?: string })[] }
 export interface InjectOptions extends RequestOptions { step?: boolean; injectedBy?: string }
 /** The people (tpa/seed/fiction.py ACTORS); the API checks who may answer what. */
 export interface Actor { id: string; name: string; role: Role; customer_id: CustomerId | null }

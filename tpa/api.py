@@ -392,7 +392,8 @@ def inject(body: Injection, conn=Depends(db)):
         return out(made)
     summary = step(conn, hooks())
     with conn.cursor() as cur:
-        touched = all_rows(cur, """SELECT * FROM findings WHERE period = %s AND EXISTS (
+        touched = all_rows(cur, """SELECT findings.*, (SELECT name FROM controls c WHERE c.id = findings.control_id)
+                                       AS control_name FROM findings WHERE period = %s AND EXISTS (
                                      SELECT 1 FROM jsonb_array_elements_text(jsonb_path_query_array(evidence, 'strict $.**'))
                                      AS x(v) WHERE x.v = ANY(%s)) ORDER BY id""", (made["period"], made["created_ids"]))
     return out({**made, "step": summary, "findings": touched})
